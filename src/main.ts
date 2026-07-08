@@ -1,7 +1,7 @@
 import './style.css';
 
 // Remote system base URL configuration
-const hostName: string = "props-revise-fancy.ngrok-free.dev";
+const hostName: string = "winrunningly.t-chrome.com";
 const systemUrl: string = `https://${hostName}`;
 let currentUserId: string = "";
 let currentUserEmail: string = "";
@@ -236,7 +236,10 @@ fetchCurrentUser();
 async function checkSystemHeartbeat(): Promise<void> {
   try {
     const response = await fetch(`${systemUrl}/system-status`, {
-      headers: { 'ngrok-skip-browser-warning': 'true' }
+      headers: {
+        'ngrok-skip-browser-warning': 'true',
+        'Bypass-Tunnel-Reminder': 'true'
+      }
     });
     if (response.ok) {
       systemStatusEl.className = "status-badge online";
@@ -556,7 +559,7 @@ async function sendMessage(): Promise<void> {
 
       if (lowerMsg === 'test video') {
         const mockFileName = "okta_new.mp4";
-        const mockRemoteUrl = "https://props-revise-fancy.ngrok-free.dev/video_feed?vp=YzpcdG1wXHJ1bm5pbmdseS1haVxva3RhX3RyYWluaW5nXDIwMjYtMDYtMDJfMTUtNDktMDM=&vf=okta_new.mp4";
+        const mockRemoteUrl = "https://${hostName}/video_feed?vp=YzpcdG1wXHJ1bm5pbmdseS1haVxva3RhX3RyYWluaW5nXDIwMjYtMDYtMDJfMTUtNDktMDM=&vf=okta_new.mp4";
 
         if (contentEl) contentEl.innerHTML = "✨ [MOCK] Downloading sample video...";
 
@@ -617,7 +620,10 @@ async function sendMessage(): Promise<void> {
     const response = await fetch(`${systemUrl}/chat-ai`, {
       method: 'POST',
       body: formData,
-      headers: { 'ngrok-skip-browser-warning': 'true' }
+      headers: {
+        'ngrok-skip-browser-warning': 'true',
+        'Bypass-Tunnel-Reminder': 'true'
+      }
     });
 
     console.log(`Response received for ${taskId}: status ${response.status}`);
@@ -770,7 +776,10 @@ async function speak(): Promise<void> {
   try {
     const res = await fetch(`${systemUrl}/speak`, {
       method: 'GET',
-      headers: { 'ngrok-skip-browser-warning': 'true' }
+      headers: {
+        'ngrok-skip-browser-warning': 'true',
+        'Bypass-Tunnel-Reminder': 'true'
+      }
     });
     if (!res.ok) throw new Error('Network response was not ok.');
     const data = await res.json();

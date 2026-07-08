@@ -1,4 +1,7 @@
 import { defineConfig, ViteDevServer } from 'vite';
+import dotenv from 'dotenv';
+
+dotenv.config();
 import session from 'express-session';
 import passport from 'passport';
 import { Strategy as GoogleStrategy, Profile } from 'passport-google-oauth20';
@@ -241,7 +244,10 @@ function runniglyAuthPlugin() {
                 try {
                     const response = await axios.get(remote_url, {
                         responseType: 'stream',
-                        headers: { 'ngrok-skip-browser-warning': 'true' },
+                        headers: {
+                            'ngrok-skip-browser-warning': 'true',
+                            'Bypass-Tunnel-Reminder': 'true'
+                        },
                     });
                     const writer = fs.createWriteStream(localPath);
                     response.data.pipe(writer);
