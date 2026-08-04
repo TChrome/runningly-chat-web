@@ -4,33 +4,40 @@ This guide provides step-by-step instructions on how to connect the `runningly-c
 
 ---
 
-## 1. Prepare Your GitHub Repository
-Ensure all your latest changes are pushed to your GitHub repository.
+## 1. Install and Login to Vercel CLI
+Because Vercel's free tier does not support GitHub Organization repositories, we deploy directly from the terminal using the Vercel CLI.
+
+1. Install the CLI globally:
+   ```bash
+   npm i -g vercel
+   ```
+2. Log in to your Vercel account:
+   ```bash
+   vercel login
+   ```
+
+## 2. First Deployment
+Run the following command in the root of your `runningly-chat-web` folder:
 ```bash
-git add .
-git commit -m "feat: Vercel deployment setup"
-git push origin main
+vercel --prod
 ```
+Answer the prompts as follows:
+* Set up and deploy? **Y**
+* Which scope? **(Select your personal account)**
+* Link to existing project? **N**
+* What's your project's name? **runningly-chat**
+* In which directory is your code located? **./**
+* Want to modify these settings? **N**
 
-## 2. Connect to Vercel
-1.  **Login to Vercel**: Go to [vercel.com](https://vercel.com) and log in with your GitHub account.
-2.  **Import Project**:
-    *   Click **"Add New..."** and select **"Project"**.
-    *   Find your `runningly-chat-web` repository from the list and click **"Import"**.
-    *   Set the **Project Name** to `runningly-chat`.
+*Note: The first deployment might show errors on the live site because the database and environment variables aren't set up yet. Proceed to step 3.*
 
-## 3. Deployment Configuration
-In the **"Configure Project"** screen, set the following:
-
-### Build & Output Settings
-*   **Framework Preset**: Select **Vite**.
-*   **Build Command**: `npm run build` (This runs `tsc -p tsconfig.api.json --noEmit && vite build`).
-
-### Environment Variables
-Add the following variables in the **Environment Variables** section:
-*   `GOOGLE_CLIENT_ID`: Your Google OAuth Client ID.
-*   `GOOGLE_CLIENT_SECRET`: Your Google OAuth Client Secret.
-*   `SESSION_SECRET`: A 32+ character random string (used for AES-256 encryption of session cookies).
+## 3. Environment Variables
+1. Go to your [Vercel Dashboard](https://vercel.com/dashboard) and click on the newly created `runningly-chat` project.
+2. Go to **Settings** > **Environment Variables**.
+3. Add the following variables:
+   * `GOOGLE_CLIENT_ID`: Your Google OAuth Client ID.
+   * `GOOGLE_CLIENT_SECRET`: Your Google OAuth Client Secret.
+   * `SESSION_SECRET`: A 32+ character random string (used for AES-256 encryption of session cookies).
 
 ## 4. Set Up Vercel Postgres
 1.  Once the project is created, navigate to the **"Storage"** tab in your Vercel Dashboard.
