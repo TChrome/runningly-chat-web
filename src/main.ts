@@ -403,13 +403,13 @@ document.addEventListener('mouseup', () => {
 });
 
 // Register OAuth logouts
-(document.querySelector('#logoutBtn') as HTMLElement).addEventListener('click', () => { window.location.href = '/logout'; });
-(document.querySelector('#revokeBtn') as HTMLElement).addEventListener('click', () => { window.location.href = '/revoke'; });
+(document.querySelector('#logoutBtn') as HTMLElement).addEventListener('click', () => { window.location.href = '/api/logout'; });
+(document.querySelector('#revokeBtn') as HTMLElement).addEventListener('click', () => { window.location.href = '/api/revoke'; });
 
 // Load Current Logged In User
 async function fetchCurrentUser(): Promise<void> {
   try {
-    const res = await fetch('/current-user');
+    const res = await fetch('/api/current-user');
     if (res.ok) {
       const user = await res.json();
       currentUserId = user.name || "User";
@@ -427,7 +427,7 @@ async function fetchCurrentUser(): Promise<void> {
       await loadAndRenderDownloads();
     } else {
       // Not authenticated — send to Google login, return here after
-      window.location.href = '/google_login?next=' + encodeURIComponent(window.location.href);
+      window.location.href = '/api/auth/login?next=' + encodeURIComponent(window.location.href);
     }
   } catch (err) {
     console.warn("Could not fetch session profile, defaulting to mock data.", err);
@@ -670,7 +670,7 @@ function initializeProgressWebSocket(taskId: string): void {
       if (contentEl) contentEl.innerHTML = "✨ Automation finished! Preparing video result...";
 
       try {
-        const cacheRes = await fetch('/download_video', {
+        const cacheRes = await fetch('/api/download-video', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ remote_url: remoteUrl, file_name: fileName })
@@ -776,7 +776,7 @@ async function sendMessage(): Promise<void> {
 
         if (contentEl) contentEl.innerHTML = "✨ [MOCK] Downloading sample video...";
 
-        const cacheRes = await fetch('/download_video', {
+        const cacheRes = await fetch('/api/download-video', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ remote_url: mockRemoteUrl, file_name: mockFileName })
@@ -858,7 +858,7 @@ async function sendMessage(): Promise<void> {
         contentEl.innerHTML = "✨ Automation finished! Preparing video result...";
       }
 
-      const cacheRes = await fetch('/download_video', {
+      const cacheRes = await fetch('/api/download-video', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ remote_url: remoteUrl, file_name: remoteFileName })
@@ -905,7 +905,7 @@ async function sendMessage(): Promise<void> {
         contentEl.innerHTML = "📁 Preparing document output, starting download cache proxy...";
       }
 
-      const cacheRes = await fetch('/download_video', {
+      const cacheRes = await fetch('/api/download-video', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ remote_url: remoteUrl, file_name: json.download_file })

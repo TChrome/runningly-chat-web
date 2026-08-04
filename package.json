@@ -1,11 +1,11 @@
 {
   "name": "runningly-chat-web",
-  "version": "0.0.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "tsc -p tsconfig.api.json --noEmit && vite build",
     "preview": "vite preview"
   },
   "devDependencies": {
@@ -15,15 +15,19 @@
     "@types/node": "^25.9.1",
     "@types/passport": "^1.0.17",
     "@types/passport-google-oauth20": "^2.0.17",
+    "@vercel/node": "^5.0.0",
+    "dotenv": "^16.4.5",
     "typescript": "^6.0.3",
-    "vite": "^8.0.12",
-    "dotenv": "^16.4.5"
+    "vite": "^8.0.12"
   },
   "dependencies": {
     "@google-cloud/logging": "^11.2.1",
+    "@vercel/blob": "^0.27.0",
+    "@vercel/postgres": "^0.10.0",
     "axios": "^1.16.1",
     "express": "^5.2.1",
     "express-session": "^1.19.0",
+    "iron-session": "^8.0.3",
     "node-fetch": "^3.3.2",
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0"

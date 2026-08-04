@@ -129,8 +129,8 @@ function runniglyAuthPlugin() {
                 }
             });
 
-            // ── /google_login ─────────────────────────────────────────────────────
-            server.middlewares.use('/google_login', (req: any, res: ServerResponse, next: any) => {
+            // ── /api/auth/login ─────────────────────────────────────────────────────
+            server.middlewares.use('/api/auth/login', (req: any, res: ServerResponse, next: any) => {
                 const protocol = req.headers['x-forwarded-proto'] || 'http';
                 const baseUrl = `${protocol}://${req.headers.host}`;
                 const url = new URL(req.url || '', baseUrl);
@@ -146,21 +146,21 @@ function runniglyAuthPlugin() {
                 passport.authenticate('google', {
                     scope: ['openid', 'email', 'profile'],
                     prompt: 'select_account',
-                    callbackURL: `${baseUrl}/login/google/authorized`
+                    callbackURL: `${baseUrl}/api/auth/callback`
                 })(req, res, next);
             });
 
-            // ── /login/google/authorized ─────────────────────────────────────────────
-            server.middlewares.use('/login/google/authorized', (req: any, res: ServerResponse, next: any) => {
+            // ── /api/auth/callback ─────────────────────────────────────────────
+            server.middlewares.use('/api/auth/callback', (req: any, res: ServerResponse, next: any) => {
                 const protocol = req.headers['x-forwarded-proto'] || 'http';
                 const baseUrl = `${protocol}://${req.headers.host}`;
 
                 passport.authenticate('google', {
-                    failureRedirect: '/google_login',
-                    callbackURL: `${baseUrl}/login/google/authorized`
+                    failureRedirect: '/api/auth/login',
+                    callbackURL: `${baseUrl}/api/auth/callback`
                 }, (err: any, user: User) => {
                     if (err || !user) {
-                        res.writeHead(302, { Location: '/google_login' });
+                        res.writeHead(302, { Location: '/api/auth/login' });
                         return res.end();
                     }
                     req.logIn(user, (loginErr: any) => {
@@ -179,8 +179,8 @@ function runniglyAuthPlugin() {
                 })(req, res, next);
             });
 
-            // ── /current-user ─────────────────────────────────────────────────────
-            server.middlewares.use('/current-user', (req: any, res: ServerResponse, next: any) => {
+            // ── /api/current-user ─────────────────────────────────────────────────────
+            server.middlewares.use('/api/current-user', (req: any, res: ServerResponse, next: any) => {
                 if (req.method !== 'GET') return next();
                 if (!req.isAuthenticated()) {
                     return sendJson(res, 401, { error: 'Not logged in' });
@@ -291,8 +291,8 @@ function runniglyAuthPlugin() {
                 }
             });
 
-            // ── /logout ───────────────────────────────────────────────────────────
-            server.middlewares.use('/logout', (req: any, res: ServerResponse, next: any) => {
+            // ── /api/logout ───────────────────────────────────────────────────────────
+            server.middlewares.use('/api/logout', (req: any, res: ServerResponse, next: any) => {
                 if (req.method !== 'GET') return next();
                 const protocol = req.headers['x-forwarded-proto'] || 'http';
                 const baseUrl = `${protocol}://${req.headers.host}`;
@@ -307,8 +307,8 @@ function runniglyAuthPlugin() {
                 });
             });
 
-            // ── /revoke ───────────────────────────────────────────────────────────
-            server.middlewares.use('/revoke', async (req: any, res: ServerResponse, next: any) => {
+            // ── /api/revoke ───────────────────────────────────────────────────────────
+            server.middlewares.use('/api/revoke', async (req: any, res: ServerResponse, next: any) => {
                 if (req.method !== 'GET') return next();
                 const protocol = req.headers['x-forwarded-proto'] || 'http';
                 const baseUrl = `${protocol}://${req.headers.host}`;
@@ -329,8 +329,8 @@ function runniglyAuthPlugin() {
                 });
             });
 
-            // ── /download_video ───────────────────────────────────────────────────
-            server.middlewares.use('/download_video', async (req: IncomingMessage, res: ServerResponse, next: () => void) => {
+            // ── /api/download-video ───────────────────────────────────────────────────
+            server.middlewares.use('/api/download-video', async (req: IncomingMessage, res: ServerResponse, next: () => void) => {
                 if (req.method !== 'POST') return next();
                 const body = await parseBody(req);
                 const { remote_url, file_name } = body;
