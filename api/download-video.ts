@@ -2,8 +2,8 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { put } from '@vercel/blob';
 import { sql } from '@vercel/postgres';
 import { getIronSession } from 'iron-session';
-import { sessionOptions, type SessionData } from './lib/session.js';
-import { initDb } from './lib/db.js';
+import { sessionOptions, type SessionData } from './lib/session';
+import { initDb } from './lib/db';
 
 // POST /api/download-video
 // Replaces the local-filesystem proxy in vite.config.ts /download_video.

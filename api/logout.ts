@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { getIronSession } from 'iron-session';
-import { sessionOptions, type SessionData } from './lib/session.js';
+import { sessionOptions, type SessionData } from './lib/session';
 
 // GET /api/logout
 // Destroys the session cookie and redirects to login.

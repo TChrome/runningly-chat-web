@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { getIronSession } from 'iron-session';
-import { sessionOptions, type SessionData, type SessionUser } from '../lib/session.js';
+import { sessionOptions, type SessionData, type SessionUser } from '../lib/session';
 
 // GET /api/auth/callback
 // Handles the Google OAuth redirect, exchanges the code for tokens,

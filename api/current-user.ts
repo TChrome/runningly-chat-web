@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { getIronSession } from 'iron-session';
-import { sessionOptions, type SessionData } from './lib/session.js';
+import { sessionOptions, type SessionData } from './lib/session';
 
 // GET /api/current-user
 // Returns the authenticated user from the session cookie, or 401.

@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { sql } from '@vercel/postgres';
 import { getIronSession } from 'iron-session';
-import { sessionOptions, type SessionData } from './lib/session.js';
-import { initDb } from './lib/db.js';
+import { sessionOptions, type SessionData } from './lib/session';
+import { initDb } from './lib/db';
 
 // GET/POST /api/history
 // Replaces the vite.config.ts /api/history file-based middleware.
