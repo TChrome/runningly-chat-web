@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { sql } from '@vercel/postgres';
 import { getIronSession } from 'iron-session';
-import { sessionOptions, type SessionData } from './lib/session';
-import { initDb } from './lib/db';
+import { sessionOptions, type SessionData } from './lib/session.js';
+import { initDb } from './lib/db.js';
 
 // GET /api/downloads
 // Returns list of videos stored in Vercel Postgres for the authenticated user,
