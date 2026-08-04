@@ -271,14 +271,13 @@ body {
   background: var(--text-muted);
 }
 
-/* ------------------ Middle Canvas Panel ------------------ */
 .middle-panel {
   background: linear-gradient(180deg, hsl(230, 18%, 8%), hsl(230, 20%, 5%));
   display: flex;
   flex-wrap: wrap;
   gap: 24px;
-  align-items: center;
-  justify-content: center;
+  align-items: flex-start;
+  justify-content: flex-start;
   padding: 30px;
   position: relative;
   box-sizing: border-box;
@@ -296,6 +295,10 @@ body {
 .task-canvas-card:only-child {
   flex: 0 1 auto;
   max-width: 440px;
+}
+
+.task-canvas-card .canvas-card {
+  max-width: 100%;
 }
 
 .chat-video-wrapper {

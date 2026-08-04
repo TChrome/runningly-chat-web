@@ -95,6 +95,8 @@ function runniglyAuthPlugin() {
         configureServer(server: ViteDevServer) {
             const downloadsDir = path.join(__dirname, 'static', 'downloads');
             fs.mkdirSync(downloadsDir, { recursive: true });
+            const dataDir = path.join(__dirname, 'data');
+            fs.mkdirSync(dataDir, { recursive: true });
 
             // 1. Query Parser (Passport needs req.query)
             server.middlewares.use((req: any, _res, next) => {
@@ -188,6 +190,105 @@ function runniglyAuthPlugin() {
                     email: req.user.email,
                     picture: req.user.picture,
                 });
+            });
+
+            // ── /api/history ──────────────────────────────────────────────────────
+            server.middlewares.use('/api/history', async (req: any, res: ServerResponse, next: any) => {
+                if (!req.isAuthenticated()) {
+                    return sendJson(res, 401, { error: 'Not logged in' });
+                }
+                const email = req.user.email || 'default';
+                const userHistoryFile = path.join(dataDir, `history_${email.replace(/[^a-zA-Z0-9_.-]/g, '_')}.json`);
+
+                if (req.method === 'GET') {
+                    let history: { conversations: any[], videos: any[] } = {
+                        conversations: [],
+                        videos: [
+                            { videoUrl: "static/downloads/okta_new.mp4", title: "Okta Sync Training", type: "video" },
+                            { videoUrl: "static/downloads/okta_new.mp4", title: "Daily Salesforce Extract", type: "download" },
+                            { videoUrl: "static/downloads/okta_new.mp4", title: "Automated Report Export", type: "document" }
+                        ]
+                    };
+                    if (fs.existsSync(userHistoryFile)) {
+                        try {
+                            const data = fs.readFileSync(userHistoryFile, 'utf8');
+                            history = JSON.parse(data);
+                        } catch (e) {
+                            console.error('Error reading user history file:', e);
+                        }
+                    }
+                    return sendJson(res, 200, history);
+                }
+
+                if (req.method === 'POST') {
+                    const body = await parseBody(req);
+                    const { action, message, video } = body;
+
+                    let history: { conversations: any[], videos: any[] } = {
+                        conversations: [],
+                        videos: [
+                            { videoUrl: "static/downloads/okta_new.mp4", title: "Okta Sync Training", type: "video" },
+                            { videoUrl: "static/downloads/okta_new.mp4", title: "Daily Salesforce Extract", type: "download" },
+                            { videoUrl: "static/downloads/okta_new.mp4", title: "Automated Report Export", type: "document" }
+                        ]
+                    };
+
+                    if (fs.existsSync(userHistoryFile)) {
+                        try {
+                            const data = fs.readFileSync(userHistoryFile, 'utf8');
+                            history = JSON.parse(data);
+                        } catch (e) {
+                            console.error('Error reading user history file:', e);
+                        }
+                    }
+
+                    if (action === 'append_message' && message) {
+                        history.conversations.push(message);
+                    } else if (action === 'append_video' && video) {
+                        const exists = history.videos.some((v: any) => v.videoUrl === video.videoUrl);
+                        if (!exists) {
+                            history.videos.unshift(video);
+                        }
+                    } else if (action === 'clear') {
+                        history.conversations = [];
+                    }
+
+                    try {
+                        fs.writeFileSync(userHistoryFile, JSON.stringify(history, null, 2), 'utf8');
+                    } catch (e) {
+                        console.error('Error writing user history file:', e);
+                        return sendJson(res, 500, { error: 'Failed to save history' });
+                    }
+
+                    return sendJson(res, 200, history);
+                }
+
+                return next();
+            });
+
+            // ── /api/downloads ────────────────────────────────────────────────────
+            server.middlewares.use('/api/downloads', (req: any, res: ServerResponse, next: any) => {
+                if (req.method !== 'GET') return next();
+                try {
+                    const files = fs.readdirSync(downloadsDir);
+                    const mp4Files = files
+                        .filter(file => file.endsWith('.mp4'))
+                        .map(file => {
+                            const filePath = path.join(downloadsDir, file);
+                            const stats = fs.statSync(filePath);
+                            return {
+                                fileName: file,
+                                videoUrl: `/static/downloads/${file}`,
+                                mtime: stats.mtime.getTime(),
+                            };
+                        })
+                        .sort((a, b) => b.mtime - a.mtime); // Latest first
+
+                    sendJson(res, 200, mp4Files);
+                } catch (e: any) {
+                    console.error('Error reading downloads directory:', e.message);
+                    sendJson(res, 500, { error: e.message });
+                }
             });
 
             // ── /logout ───────────────────────────────────────────────────────────

@@ -1,0 +1,328 @@
+{
+  "conversations": [
+    {
+      "sender": "user",
+      "content": "hello"
+    },
+    {
+      "sender": "bot",
+      "content": "Hello Tarek! I'm Copilot, nice to meet you.",
+      "id": "bot_msg_task_1783553594197_3gbw62b6l"
+    },
+    {
+      "sender": "user",
+      "content": "create a new okta user username John.Smith.uuissd233@amail.com for First Name 'Johns4$$' and Last name 'Smith'. Please use email as username and assign this to group called \"No MFA\". Audio: Nicole, add side panel, and add avatar"
+    },
+    {
+      "sender": "bot",
+      "content": "Be more concise.",
+      "id": "bot_msg_task_1783553630300_ofom6nkca"
+    },
+    {
+      "sender": "user",
+      "content": "create a new okta user username John.Smith.r@amail.com for First Name 'Johns4$$' and Last name 'Smith'. Please use email as username and assign this to group called \"No MFA\". Audio: Nicole, add side panel, and add avatar"
+    },
+    {
+      "sender": "bot",
+      "content": "Be more concise.",
+      "id": "bot_msg_task_1783553664544_i6hkn84le"
+    },
+    {
+      "sender": "user",
+      "content": "create a new okta user username John.Smith.uuissd233@amail.com for First Name 'Tarek' and Last name 'Smith'. Please use email as username and assign this to group called \"No MFA\". Audio: Nicole, add side panel, and add avatar"
+    },
+    {
+      "sender": "bot",
+      "content": "I've updated your information. Here is the summary:<br>- First Name: Tarek<br>- Last Name: Smith<br>- Username: John.Smith.uuissd233@amail.com<br>- Email: John.Smith.uuissd233@amail.com<br>- Group: No MFA<br>- Audio: audioless (Nicole)<br>- Sidepanel: add<br>- Avatar: add<br><br>Would you like to proceed with creating this user in Okta?",
+      "id": "bot_msg_task_1783553711291_ps0i4iwcl"
+    },
+    {
+      "sender": "user",
+      "content": "ok"
+    },
+    {
+      "sender": "bot",
+      "content": "Automation has been queued and is running in the background. You can track its progress above!",
+      "id": "bot_msg_task_1783553740779_uyvqmh09b"
+    },
+    {
+      "sender": "user",
+      "content": "create a new okta user username John.Smith.uuissd233@amail.com for First Name 'Johns4$$' and Last name 'Smith'. Please use email as username and assign this to group called \"No MFA\". Audio: Nicole, add side panel, and add avatar"
+    },
+    {
+      "sender": "bot",
+      "content": "Invalid first name. Please enter only alphabetic characters. Additionally, the group name 'No MFA' contains invalid characters. Please provide a valid first name (alphabetic only) and a valid group name (alphabetic and spaces only).",
+      "id": "bot_msg_task_1783563427333_di0033io0"
+    },
+    {
+      "sender": "user",
+      "content": "Dave"
+    },
+    {
+      "sender": "bot",
+      "content": "Thanks, Dave. What's the group?",
+      "id": "bot_msg_task_1783563450382_c230wufmn"
+    },
+    {
+      "sender": "user",
+      "content": "No MFA"
+    },
+    {
+      "sender": "bot",
+      "content": "I'm sorry, but \"No MFA\" is not a valid answer for the current step. You still need to provide a group name. What's the group?",
+      "id": "bot_msg_task_1783563464582_ie4qt8pxq"
+    },
+    {
+      "sender": "user",
+      "content": "what's the validation for No group?"
+    },
+    {
+      "sender": "bot",
+      "content": "The validation rule for the group is 'RegExp:^[a-zA-Z\\s]+$'. This means the group name must contain only alphabetic characters and spaces. Please provide a valid group name to continue.",
+      "id": "bot_msg_task_1783563494607_oqj97o840"
+    },
+    {
+      "sender": "user",
+      "content": "No MFA should match"
+    },
+    {
+      "sender": "bot",
+      "content": "I'm sorry, but I didn't understand how 'No MFA should match' relates to the information requested. To proceed with creating the user in Okta, I still need a valid group name. Could you please provide the group?",
+      "id": "bot_msg_task_1783563518126_tv0zo17lx"
+    },
+    {
+      "sender": "user",
+      "content": "No Test"
+    },
+    {
+      "sender": "bot",
+      "content": "Automation has been queued and is running in the background. You can track its progress above!",
+      "id": "bot_msg_task_1783563541357_ddwzvl56o"
+    },
+    {
+      "sender": "user",
+      "content": "list"
+    },
+    {
+      "sender": "bot",
+      "content": "1 - open browser and go to history<br>2 - Open command prompt (cmd.exe) and run a few commands<br>3 - turn dark mode off<br>4 - turn dark mode on<br>5 - Execute or run code in eclipse<br>6 - In Excel, open a CSV file and then format it as a table.<br>7 - In Experity, update patient info, phone and email<br>8 - Create or generate a new invoice for T-Chrome Tech Inc.<br>9 - In JIRA, download a Filter report in CSV<br>10 - In JIRA, Create a new ticket<br>11 - In Okta, create a new user<br>12 - Create a new template in MS Word.",
+      "id": "bot_msg_task_1783573311269_n9qyhut76"
+    },
+    {
+      "sender": "user",
+      "content": "create a new okta user username John.Smith.uuidd1d233@amail.com for First Name 'Johns4$$' and Last name 'Smith'. Please use email as username and assign this to group called \"No MFA\". Audio: Nicole, add side panel, and add avatar"
+    },
+    {
+      "sender": "bot",
+      "content": "Invalid first name. Please enter only alphabetic characters. Please provide a valid first name.",
+      "id": "bot_msg_task_1783573344533_r8y2toy2w"
+    },
+    {
+      "sender": "user",
+      "content": "use Dave as firstname, also email and username are firstname on yahoo. remove the group"
+    },
+    {
+      "sender": "bot",
+      "content": "I've updated your information. However, the 'group' is a required field. Could you please provide a valid group name to proceed?",
+      "id": "bot_msg_task_1783573448413_mnuy9j2ig"
+    },
+    {
+      "sender": "user",
+      "content": "No MFA"
+    },
+    {
+      "sender": "bot",
+      "content": "I understand you've mentioned 'No MFA', but I still need to know the group for the user. What's the group?",
+      "id": "bot_msg_task_1783573463645_wh7fuueko"
+    },
+    {
+      "sender": "user",
+      "content": "the group name is 'No MFA'. give me all data before proceed"
+    },
+    {
+      "sender": "bot",
+      "content": "Here is the information I have collected for you:<br><br>- First name: Dave<br>- Last name: Smith<br>- Username: Dave@yahoo.com<br>- Email: Dave@yahoo.com<br>- Group: No MFA<br>- Gender/Audio: Nicole<br>- Sidepanel: add<br>- Avatar: yes<br><br>All required information has been collected. Would you like to proceed and run the automation?",
+      "id": "bot_msg_task_1783573501074_j7qm0nsz6"
+    },
+    {
+      "sender": "user",
+      "content": "make audio audioless"
+    },
+    {
+      "sender": "bot",
+      "content": "I've updated your selection to 'audioless'. All information has been collected. Here is the summary:<br><br>- First Name: Dave<br>- Last Name: Smith<br>- Username: Dave@yahoo.com<br>- Email: Dave@yahoo.com<br>- Group: No MFA<br>- Gender/Audio: audioless<br>- Sidepanel: add<br>- Add avatar: yes<br><br>Would you like to proceed with creating this user in Okta?",
+      "id": "bot_msg_task_1783573526056_h5o6ivzab"
+    },
+    {
+      "sender": "user",
+      "content": "ok"
+    },
+    {
+      "sender": "bot",
+      "content": "Automation has been queued and is running in the background. You can track its progress above!",
+      "id": "bot_msg_task_1783573546127_4c72h7i8q"
+    },
+    {
+      "sender": "user",
+      "content": "continue again"
+    },
+    {
+      "sender": "bot",
+      "content": "Be more concise.",
+      "id": "bot_msg_task_1783573764400_3pugcmvua"
+    },
+    {
+      "sender": "user",
+      "content": "create a new okta user username John.Smith.uuidd1d233@amail.com for First Name 'Johns4$$' and Last name 'Smith'. Please use email as username and assign this to group called \"No MFA\". Audio: Nicole, add side panel, and add avatar"
+    },
+    {
+      "sender": "bot",
+      "content": "Be more concise.",
+      "id": "bot_msg_task_1783573801015_8n1lpouh0"
+    },
+    {
+      "sender": "user",
+      "content": "create a new okta user username John.Smith.uuidd1d233@amail.com for First Name 'Johns4$$' and Last name 'Smith'. Please use email as username and assign this to group called \"No MFA\". Audio: Nicole, add side panel, and add avatar"
+    },
+    {
+      "sender": "bot",
+      "content": "Invalid first name. Please enter only alphabetic characters. Please provide a valid first name.",
+      "id": "bot_msg_task_1783573808824_zzb97zt9v"
+    },
+    {
+      "sender": "user",
+      "content": "Dave. email is same as username as firstname on hotmail"
+    },
+    {
+      "sender": "bot",
+      "content": "I have updated your first name to 'Dave' and updated your username and email to 'Dave@hotmail.com'. All required information is now collected. Here is a summary: First Name: Dave, Last Name: Smith, Username: Dave@hotmail.com, Email: Dave@hotmail.com, Group: No MFA, Gender/Option: Nicole, Sidepanel: add, Avatar: add. Would you like to proceed with creating the user?",
+      "id": "bot_msg_task_1783573845278_rjb1tib5e"
+    },
+    {
+      "sender": "user",
+      "content": "make it audioless instead"
+    },
+    {
+      "sender": "bot",
+      "content": "I've updated your selection to 'audioless'. All information has been collected. Please review your details: First Name: Dave, Last Name: Smith, Username: Dave@hotmail.com, Email: Dave@hotmail.com, Group: No MFA, Gender/Mode: audioless, Sidepanel: add, Avatar: add. Would you like to proceed with creating this user in Okta?",
+      "id": "bot_msg_task_1783573881536_ay3xrlwi3"
+    },
+    {
+      "sender": "user",
+      "content": "yes"
+    },
+    {
+      "sender": "bot",
+      "content": "Automation has been queued and is running in the background. You can track its progress above!",
+      "id": "bot_msg_task_1783573904745_ne2w4cdpk"
+    },
+    {
+      "sender": "user",
+      "content": "ok"
+    },
+    {
+      "sender": "bot",
+      "content": "Hey Tarek! Good to meet you, I'm Copilot. What's up?",
+      "id": "bot_msg_task_1783574070189_xj2cgvbn7"
+    },
+    {
+      "sender": "user",
+      "content": "I've updated your selection to 'audioless'. All information has been collected. Please review your details: First Name: Dave, Last Name: Smith, Username: Dave@hotmail.com, Email: Dave@hotmail.com, Group: No MFA, Gender/Mode: audioless, Sidepanel: add, Avatar: add. Would you like to proceed with creating this user in Okta?"
+    },
+    {
+      "sender": "bot",
+      "content": "Thank you. I have confirmed your details: First Name: Dave, Last Name: Smith, Username: Dave@hotmail.com, Email: Dave@hotmail.com, Group: No MFA, Gender/Mode: audioless, Sidepanel: add, Avatar: add. Everything is set. Shall I proceed with creating this user in Okta?",
+      "id": "bot_msg_task_1783574093204_pwh2wuqc1"
+    },
+    {
+      "sender": "user",
+      "content": "ok"
+    },
+    {
+      "sender": "bot",
+      "content": "Automation has been queued and is running in the background. You can track its progress above!",
+      "id": "bot_msg_task_1783574207323_q7kbf87yz"
+    },
+    {
+      "sender": "user",
+      "content": "Thank you. I have confirmed your details: First Name: Dave, Last Name: Smith, Username: Dave@hotmail.com, Email: Dave@hotmail.com, Group: No MFA, Gender/Mode: audioless, Sidepanel: add, Avatar: add. Everything is set. Shall I proceed with creating this user in Okta?"
+    },
+    {
+      "sender": "bot",
+      "content": "Thank you for confirming the details. I have successfully recorded your information. Since all required fields are complete, please confirm if you would like me to proceed with creating the user 'Dave Smith' in Okta.",
+      "id": "bot_msg_task_1783574384400_bw8hs9pbw"
+    },
+    {
+      "sender": "user",
+      "content": "ok"
+    },
+    {
+      "sender": "bot",
+      "content": "Automation has been queued and is running in the background. You can track its progress above!",
+      "id": "bot_msg_task_1783574408295_p8u134p26"
+    },
+    {
+      "sender": "user",
+      "content": "First Name: Dave, Last Name: Smith, Username: Dave@hotmail.com, Email: Dave@hotmail.com, Group: No MFA, Gender/Mode: audioless, Sidepanel: add, Avatar: add. Everything is set. Shall I proceed with creating this user in Okta?"
+    },
+    {
+      "sender": "bot",
+      "content": "All information has been collected. Please confirm the details below to proceed with creating the user in Okta:<br><br>- First Name: Dave<br>- Last Name: Smith<br>- Username: Dave@hotmail.com<br>- Email: Dave@hotmail.com<br>- Group: No MFA<br>- Gender/Mode: audioless<br>- Sidepanel: add<br>- Avatar: add<br><br>Do you want to proceed with creating this user?",
+      "id": "bot_msg_task_1783575088817_x4ysdlysz"
+    },
+    {
+      "sender": "user",
+      "content": "ok"
+    },
+    {
+      "sender": "bot",
+      "content": "Automation has been queued and is running in the background. You can track its progress above!",
+      "id": "bot_msg_task_1783575112599_w96bc3iqk"
+    },
+    {
+      "sender": "bot",
+      "content": "\n            <div class=\"chat-video-bubble\">\n              <p style=\"margin:0 0 8px 0; font-weight:500;\">✅ Automation finished! Video ready:</p>\n              <div class=\"chat-video-wrapper\" id=\"chat_video_wrap_task_1783575112599_w96bc3iqk\">\n                <video id=\"chat_video_el_task_1783575112599_w96bc3iqk\">\n                  <source src=\"/static/downloads/automation_result_1783575338769.mp4\" type=\"video/mp4\">\n                </video>\n                <div class=\"video-overlay-play\">\n                  <svg class=\"play-icon-svg mini\" viewBox=\"0 0 24 24\" fill=\"currentColor\" style=\"width:40px; height:40px;\">\n                    <path d=\"M8 5v14l11-7z\"></path>\n                  </svg>\n                </div>\n              </div>\n            </div>\n          ",
+      "id": "bot_msg_task_1783575112599_w96bc3iqk"
+    },
+    {
+      "sender": "user",
+      "content": "list all"
+    },
+    {
+      "sender": "bot",
+      "content": "1 - open browser and go to history<br>2 - Open command prompt (cmd.exe) and run a few commands<br>3 - turn dark mode off<br>4 - turn dark mode on<br>5 - Execute or run code in eclipse<br>6 - In Excel, open a CSV file and then format it as a table.<br>7 - In Experity, update patient info, phone and email<br>8 - Create or generate a new invoice for T-Chrome Tech Inc.<br>9 - In JIRA, download a Filter report in CSV<br>10 - In JIRA, Create a new ticket<br>11 - In Okta, create a new user<br>12 - Create a new template in MS Word",
+      "id": "bot_msg_task_1783579076936_ztv4vy5ap"
+    },
+    {
+      "sender": "user",
+      "content": "again"
+    },
+    {
+      "sender": "bot",
+      "content": "1. open browser and go to history<br>2. Open command prompt (cmd.exe) and run a few commands<br>3. turn dark mode off<br>4. turn dark mode on<br>5. Execute or run code in eclipse<br>6. In Excel, open a CSV file and then format it as a table.<br>7. In Experity, update patient info, phone and email<br>8. Create or generate a new invoice for T-Chrome Tech Inc.<br>9. In JIRA, download a Filter report in CSV<br>10. In JIRA, Create a new ticket<br>11. In Okta, create a new user<br>12. Create a new template in MS Word.",
+      "id": "bot_msg_task_1783579112710_boclsonq3"
+    }
+  ],
+  "videos": [
+    {
+      "videoUrl": "/static/downloads/automation_result_1783575338769.mp4",
+      "title": "Automation Result",
+      "type": "video"
+    },
+    {
+      "videoUrl": "static/downloads/okta_new.mp4",
+      "title": "Okta Sync Training",
+      "type": "video"
+    },
+    {
+      "videoUrl": "static/downloads/okta_new.mp4",
+      "title": "Daily Salesforce Extract",
+      "type": "download"
+    },
+    {
+      "videoUrl": "static/downloads/okta_new.mp4",
+      "title": "Automated Report Export",
+      "type": "document"
+    }
+  ]
+}

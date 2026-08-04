@@ -32,31 +32,7 @@ appEl.innerHTML = `
       <div class="panel-content">
         <div class="section-title">History & Conversions</div>
         <nav class="history-list" id="historyList">
-          <div class="history-item" data-video="static/downloads/okta_new.mp4" data-title="Okta Sync Training">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M23 7l-7 5 7 5V7z"></path>
-              <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
-            </svg>
-            <span class="history-item-label">Okta Sync Training</span>
-          </div>
-          <div class="history-item" data-video="static/downloads/okta_new.mp4" data-title="Daily Salesforce Extract">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-              <polyline points="7 10 12 15 17 10"></polyline>
-              <line x1="12" y1="15" x2="12" y2="3"></line>
-            </svg>
-            <span class="history-item-label">Daily Salesforce Extract</span>
-          </div>
-          <div class="history-item" data-video="static/downloads/okta_new.mp4" data-title="Automated Report Export">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-              <polyline points="14 2 14 8 20 8"></polyline>
-              <line x1="16" y1="13" x2="8" y2="13"></line>
-              <line x1="16" y1="17" x2="8" y2="17"></line>
-              <polyline points="10 9 9 9 8 9"></polyline>
-            </svg>
-            <span class="history-item-label">Automated Report Export</span>
-          </div>
+          <!-- Dynamically populated -->
         </nav>
       </div>
     </aside>
@@ -133,12 +109,237 @@ const chatMessagesEl = document.querySelector('#chatMessages') as HTMLElement;
 const chatInputEl = document.querySelector('#chatInput') as HTMLTextAreaElement;
 const sendBtnEl = document.querySelector('#sendBtn') as HTMLButtonElement;
 const micBtnEl = document.querySelector('#micBtn') as HTMLButtonElement;
-const historyItems = document.querySelectorAll('.history-item');
+const historyListEl = document.querySelector('#historyList') as HTMLElement;
 const middleCanvasEl = document.querySelector('#middleCanvas') as HTMLElement;
 const popupOverlayEl = document.querySelector('#popupOverlay') as HTMLElement;
 const popupVideoEl = document.querySelector('#popupVideo') as HTMLVideoElement;
 const closePopupBtnEl = document.querySelector('#closePopupBtn') as HTMLButtonElement;
 const systemStatusEl = document.querySelector('#systemStatus') as HTMLElement;
+
+// Helper to get SVG icon for history item
+function getHistoryIconSvg(type: string): string {
+  if (type === 'video') {
+    return `
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M23 7l-7 5 7 5V7z"></path>
+        <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+      </svg>
+    `;
+  } else if (type === 'download') {
+    return `
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+        <polyline points="7 10 12 15 17 10"></polyline>
+        <line x1="12" y1="15" x2="12" y2="3"></line>
+      </svg>
+    `;
+  } else {
+    return `
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+        <polyline points="14 2 14 8 20 8"></polyline>
+        <line x1="16" y1="13" x2="8" y2="13"></line>
+        <line x1="16" y1="17" x2="8" y2="17"></line>
+        <polyline points="10 9 9 9 8 9"></polyline>
+      </svg>
+    `;
+  }
+}
+
+// Render history list in sidebar
+function renderHistoryList(videos: any[]): void {
+  historyListEl.innerHTML = '';
+  videos.forEach(video => {
+    const itemHtml = `
+      <div class="history-item" data-video="${video.videoUrl}" data-title="${video.title}">
+        ${getHistoryIconSvg(video.type || 'video')}
+        <span class="history-item-label">${video.title}</span>
+      </div>
+    `;
+    historyListEl.insertAdjacentHTML('beforeend', itemHtml);
+  });
+}
+
+// Render chat history
+function renderChatHistory(conversations: any[]): void {
+  const welcomeBubble = chatMessagesEl.querySelector('.chat-bubble:first-child');
+  chatMessagesEl.innerHTML = '';
+  if (welcomeBubble) {
+    chatMessagesEl.appendChild(welcomeBubble);
+  } else {
+    const welcomeHtml = `
+      <div class="chat-bubble bot">
+        <span class="bubble-meta">Agent</span>
+        <div class="bubble-content" id="welcomeBubbleContent">
+          Hello, ${currentUserId}! I am your Runningly AI Assistant. How can I help you automate your workflows today?
+        </div>
+      </div>
+    `;
+    chatMessagesEl.insertAdjacentHTML('beforeend', welcomeHtml);
+  }
+
+  conversations.forEach(msg => {
+    const bubble = document.createElement('div');
+    bubble.className = `chat-bubble ${msg.sender}`;
+    const msgId = msg.id || ('msg_' + Math.random().toString(36).substring(2, 11));
+    bubble.id = msgId;
+    bubble.innerHTML = `
+      <span class="bubble-meta">${msg.sender === 'user' ? 'You' : 'Agent'}</span>
+      <div class="bubble-content" id="content_${msgId}">${msg.content}</div>
+    `;
+    chatMessagesEl.appendChild(bubble);
+
+    const videoWrappers = bubble.querySelectorAll('.chat-video-wrapper');
+    videoWrappers.forEach(wrapper => {
+      const videoEl = wrapper.querySelector('video');
+      const sourceEl = videoEl?.querySelector('source');
+      const videoUrl = sourceEl?.getAttribute('src') || '';
+      wrapper.addEventListener('click', () => {
+        popupVideoEl.src = videoUrl;
+        popupOverlayEl.style.display = 'grid';
+        popupVideoEl.play();
+      });
+    });
+  });
+
+  chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+}
+
+// Fetch user history from server
+async function fetchAndRenderHistory(): Promise<void> {
+  try {
+    const res = await fetch('/api/history');
+    if (res.ok) {
+      const history = await res.json();
+      renderHistoryList(history.videos);
+      renderChatHistory(history.conversations);
+    }
+  } catch (err) {
+    console.error("Failed to fetch history:", err);
+  }
+}
+
+// Render downloads grid in middle canvas
+function renderDownloadsGrid(videos: any[]): void {
+  middleCanvasEl.innerHTML = '';
+  if (videos.length === 0) {
+    middleCanvasEl.innerHTML = `
+      <div class="canvas-welcome">
+        <div class="welcome-icon">🎥</div>
+        <h2>No Videos Found</h2>
+        <p>No videos have been generated yet. Run an automation to generate your first video!</p>
+      </div>
+    `;
+    return;
+  }
+
+  videos.forEach((video, index) => {
+    const baseName = video.fileName.replace('.mp4', '');
+    const match = baseName.match(/\d+/);
+    let formattedTime = '';
+    let baseTitle = 'Automation Result';
+
+    if (match) {
+      const timestamp = parseInt(match[0], 10);
+      const date = new Date(timestamp);
+      const pad = (n: number) => n.toString().padStart(2, '0');
+      formattedTime = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+
+      baseTitle = baseName
+        .replace(match[0], '')
+        .replace(/_/g, ' ')
+        .trim()
+        .split(' ')
+        .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+    } else {
+      baseTitle = baseName
+        .replace(/_/g, ' ')
+        .trim()
+        .split(' ')
+        .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+    }
+
+    const cardHtml = `
+      <div class="task-canvas-card" data-video-file="${video.fileName}">
+        <div class="canvas-card">
+          <div class="video-frame-header" style="display: flex; justify-content: space-between; width: 100%; align-items: center; margin-bottom: 12px;">
+            <span class="video-frame-title" style="font-size: 13px; font-weight: 600; color: var(--text-secondary);">${baseTitle}</span>
+            <span class="video-frame-time" style="font-size: 11px; color: var(--text-muted); text-align: right;">${formattedTime}</span>
+          </div>
+          <div class="video-element-wrapper" id="canvasVideoWrapper_${index}" style="width: 100%; border-radius: 12px;">
+            <video id="canvasVideo_${index}" preload="auto" style="width: 100%; border-radius: 12px; display: block;">
+              <source src="${video.videoUrl}" type="video/mp4">
+            </video>
+            <div class="video-overlay-play">
+              <svg class="play-icon-svg" viewBox="0 0 24 24" fill="currentColor" style="width: 42px; height: 42px;">
+                <path d="M8 5v14l11-7z"></path>
+              </svg>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    middleCanvasEl.insertAdjacentHTML('beforeend', cardHtml);
+
+    const wrapper = document.getElementById(`canvasVideoWrapper_${index}`);
+    wrapper?.addEventListener('click', () => {
+      popupVideoEl.src = video.videoUrl;
+      popupOverlayEl.style.display = 'grid';
+      popupVideoEl.play();
+    });
+  });
+}
+
+// Fetch and render downloads
+async function loadAndRenderDownloads(): Promise<void> {
+  try {
+    const res = await fetch('/api/downloads');
+    if (res.ok) {
+      const videos = await res.json();
+      renderDownloadsGrid(videos);
+    }
+  } catch (err) {
+    console.error("Failed to load downloads:", err);
+  }
+}
+
+// Save message to history
+async function saveMessageToHistory(sender: 'user' | 'bot', content: string, id?: string): Promise<void> {
+  try {
+    await fetch('/api/history', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'append_message',
+        message: { sender, content, id }
+      })
+    });
+  } catch (err) {
+    console.error("Failed to save message to history:", err);
+  }
+}
+
+// Save video/document to history
+async function saveVideoToHistory(videoUrl: string, title: string, type: string = 'video'): Promise<void> {
+  try {
+    const res = await fetch('/api/history', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'append_video',
+        video: { videoUrl, title, type }
+      })
+    });
+    if (res.ok) {
+      const history = await res.json();
+      renderHistoryList(history.videos);
+    }
+  } catch (err) {
+    console.error("Failed to save video to history:", err);
+  }
+}
 
 // Resizable Right Panel Logic
 const resizer = document.querySelector('#rightResizer') as HTMLElement;
@@ -222,6 +423,8 @@ async function fetchCurrentUser(): Promise<void> {
       if (welcomeBubble) {
         welcomeBubble.textContent = `Hello, ${currentUserId}! I am your Runningly AI Assistant. How can I help you automate your workflows today?`;
       }
+      await fetchAndRenderHistory();
+      await loadAndRenderDownloads();
     } else {
       // Not authenticated — send to Google login, return here after
       window.location.href = '/google_login?next=' + encodeURIComponent(window.location.href);
@@ -256,16 +459,17 @@ async function checkSystemHeartbeat(): Promise<void> {
 setInterval(checkSystemHeartbeat, 15000);
 checkSystemHeartbeat();
 
-// Load Video in Middle Canvas (History items clicking)
-historyItems.forEach(item => {
-  item.addEventListener('click', () => {
-    historyItems.forEach(el => el.classList.remove('active'));
-    item.classList.add('active');
+// Load Video in Middle Canvas (History items clicking via event delegation)
+historyListEl.addEventListener('click', (e) => {
+  const item = (e.target as HTMLElement).closest('.history-item');
+  if (!item) return;
 
-    const videoUrl = item.getAttribute('data-video') || "";
-    const title = item.getAttribute('data-title') || "";
-    renderVideoFrame(videoUrl, title);
-  });
+  document.querySelectorAll('.history-item').forEach(el => el.classList.remove('active'));
+  item.classList.add('active');
+
+  const videoUrl = item.getAttribute('data-video') || "";
+  const title = item.getAttribute('data-title') || "";
+  renderVideoFrame(videoUrl, title);
 });
 
 // Canvas Render Managers
@@ -305,7 +509,7 @@ function updateOrCreateProgressCard(taskId: string, stage: string = "Initializin
         </div>
       </div>
     `;
-    middleCanvasEl.insertAdjacentHTML('beforeend', cardHtml);
+    middleCanvasEl.insertAdjacentHTML('afterbegin', cardHtml);
     cardEl = document.querySelector(`[data-task-id="${taskId}"]`) as HTMLElement;
   }
 
@@ -329,20 +533,26 @@ function removeProgressCard(taskId: string): void {
     card.style.animation = 'scaleUp 0.3s reverse ease-out forwards';
     setTimeout(() => {
       card.remove();
-      // If there are no more active cards, show welcome screen again
+      // If there are no more active cards, load and render downloads again
       if (middleCanvasEl.querySelectorAll('.task-canvas-card').length === 0) {
-        renderWelcome();
+        loadAndRenderDownloads();
       }
     }, 300);
   }
 }
 
 function renderVideoFrame(videoUrl: string, title: string, taskId?: string): void {
+  const match = videoUrl.match(/\d+/);
+  const date = match ? new Date(parseInt(match[0], 10)) : new Date();
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  const formattedTime = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+
   const videoHtml = `
     <div class="task-canvas-card" ${taskId ? `data-task-id="${taskId}"` : ''}>
       <div class="canvas-card">
-        <div class="video-frame-header">
+        <div class="video-frame-header" style="display: flex; justify-content: space-between; width: 100%; align-items: center; margin-bottom: 12px;">
           <span class="video-frame-title" style="font-size: 13px; font-weight: 600; color: var(--text-secondary);">${title}</span>
+          <span class="video-frame-time" style="font-size: 11px; color: var(--text-muted); text-align: right;">${formattedTime}</span>
         </div>
         <div class="video-element-wrapper" id="canvasVideoWrapper_${taskId || 'default'}" style="width: 100%; border-radius: 12px;">
           <video id="canvasVideo_${taskId || 'default'}" preload="auto" style="width: 100%; border-radius: 12px; display: block;">
@@ -363,7 +573,7 @@ function renderVideoFrame(videoUrl: string, title: string, taskId?: string): voi
     if (card) {
       card.outerHTML = videoHtml;
     } else {
-      middleCanvasEl.insertAdjacentHTML('beforeend', videoHtml);
+      middleCanvasEl.insertAdjacentHTML('afterbegin', videoHtml);
     }
   } else {
     middleCanvasEl.innerHTML = videoHtml;
@@ -491,6 +701,8 @@ function initializeProgressWebSocket(taskId: string): void {
             popupOverlayEl.style.display = 'grid';
             popupVideoEl.play();
           });
+          saveMessageToHistory('bot', contentEl.innerHTML, botMsgId);
+          saveVideoToHistory(cached.local_url, "Automation Result", 'video');
         }
       } catch (err) {
         console.error("Error finalizing progress card video:", err);
@@ -516,6 +728,7 @@ async function sendMessage(): Promise<void> {
 
   chatInputEl.value = '';
   appendChatMessage('user', messageText);
+  saveMessageToHistory('user', messageText);
 
   const taskId = 'task_' + Date.now() + '_' + Math.random().toString(36).substring(2, 11);
   console.log(`Generated job parameters. Scope ID: ${taskId}`);
@@ -592,11 +805,14 @@ async function sendMessage(): Promise<void> {
             popupOverlayEl.style.display = 'grid';
             popupVideoEl.play();
           });
+          saveMessageToHistory('bot', contentEl.innerHTML, botMsgId);
+          saveVideoToHistory(cached.local_url, "Mock Video Result", 'video');
         }
       } else {
         // Mock Text Result
         if (contentEl) {
           contentEl.innerHTML = "✅ [MOCK] Automation finished! Here is your report:<br><br>1. Data extracted successfully.<br>2. Validation passed.<br>3. System updated.";
+          saveMessageToHistory('bot', contentEl.innerHTML, botMsgId);
         }
         // Replace progress card with a "Success" card on canvas
         const card = document.querySelector(`[data-task-id="${taskId}"]`);
@@ -678,6 +894,8 @@ async function sendMessage(): Promise<void> {
           popupOverlayEl.style.display = 'grid';
           popupVideoEl.play();
         });
+        saveMessageToHistory('bot', contentEl.innerHTML, botMsgId);
+        saveVideoToHistory(cached.local_url, "Automation Result", 'video');
       }
     }
     else if (json.download_file) {
@@ -698,6 +916,8 @@ async function sendMessage(): Promise<void> {
 
       if (contentEl) {
         contentEl.innerHTML = `📥 Download complete! Click to save: <a href="${cached.local_url}" download class="fancy-link" style="color:var(--accent); font-weight:600; text-decoration:underline;">${json.download_file}</a>`;
+        saveMessageToHistory('bot', contentEl.innerHTML, botMsgId);
+        saveVideoToHistory(cached.local_url, json.download_file, 'document');
       }
       // Show success on canvas
       const card = document.querySelector(`[data-task-id="${taskId}"]`);
@@ -739,6 +959,8 @@ async function sendMessage(): Promise<void> {
           if (index < m.length) {
             const delay = char === ' ' ? 60 : 30; // Double speed for spaces!
             setTimeout(typeCharacter, delay);
+          } else {
+            saveMessageToHistory('bot', contentEl.innerHTML, botMsgId);
           }
           chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
         }
