@@ -26,3 +26,4 @@ static/downloads
 logging-service-account.json
 static/downloads/
 .env
+.vercel

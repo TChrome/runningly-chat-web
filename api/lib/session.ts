@@ -1,4 +1,4 @@
-import type { IronSessionOptions } from 'iron-session';
+import type { SessionOptions } from 'iron-session';
 
 // ─── Session User Shape ────────────────────────────────────────────────────────
 export interface SessionUser {
@@ -16,7 +16,7 @@ export interface SessionData {
 
 // ─── Iron-Session Options ──────────────────────────────────────────────────────
 // SESSION_SECRET must be at least 32 characters (AES-256).
-export const sessionOptions: IronSessionOptions = {
+export const sessionOptions: SessionOptions = {
     password: process.env.SESSION_SECRET as string,
     cookieName: 'runningly-session',
     cookieOptions: {

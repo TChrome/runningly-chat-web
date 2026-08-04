@@ -1,28 +1,28 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { sql } from '@vercel/postgres';
 import { getIronSession } from 'iron-session';
-import { sessionOptions, type SessionData } from './lib/session';
-import { initDb } from './lib/db';
+import { sessionOptions, type SessionData } from './lib/session.js';
+import { initDb } from './lib/db.js';
 
 // GET /api/downloads
 // Returns list of videos stored in Vercel Postgres for the authenticated user,
 // sorted newest first. Replaces the local filesystem scan in vite.config.ts.
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-    if (req.method !== 'GET') {
-        res.status(405).json({ error: 'Method not allowed' });
-        return;
-    }
+  if (req.method !== 'GET') {
+    res.status(405).json({ error: 'Method not allowed' });
+    return;
+  }
 
-    const session = await getIronSession<SessionData>(req as any, res as any, sessionOptions);
+  const session = await getIronSession<SessionData>(req as any, res as any, sessionOptions);
 
-    if (!session.user) {
-        res.status(401).json({ error: 'Not logged in' });
-        return;
-    }
+  if (!session.user) {
+    res.status(401).json({ error: 'Not logged in' });
+    return;
+  }
 
-    await initDb();
+  await initDb();
 
-    const result = await sql`
+  const result = await sql`
     SELECT
       video_url  AS "videoUrl",
       title      AS "fileName",
@@ -32,5 +32,5 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     ORDER BY created_at DESC;
   `;
 
-    res.status(200).json(result.rows);
+  res.status(200).json(result.rows);
 }

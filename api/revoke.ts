@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { getIronSession } from 'iron-session';
-import { sessionOptions, type SessionData } from './lib/session';
+import { sessionOptions, type SessionData } from './lib/session.js';
 
 // GET /api/revoke
 // Revokes the Google OAuth access token, destroys the session, and redirects.

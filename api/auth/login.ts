@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { getIronSession } from 'iron-session';
-import { sessionOptions, type SessionData } from '../lib/session';
+import { sessionOptions, type SessionData } from '../lib/session.js';
 
 // GET /api/auth/login
 // Redirects the browser to Google's OAuth 2.0 authorization URL.
