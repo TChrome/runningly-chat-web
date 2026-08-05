@@ -43,12 +43,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             throw new Error(`Backend responded ${backendRes.status}: ${await backendRes.text()}`);
         }
 
-        // ── Step 2: Upload video stream directly to Vercel Blob ───────────────────
+        // Convert the stream to a buffer (fixes "fetch failed" Node.js stream errors)
+        const arrayBuffer = await backendRes.arrayBuffer();
+        const videoBuffer = Buffer.from(arrayBuffer);
+
+        // ── Step 2: Upload video buffer directly to Vercel Blob ───────────────────
         // Unique key: email-prefix + timestamp + filename to prevent collisions
         const safeEmail = session.user.email.replace(/[^a-zA-Z0-9]/g, '_');
         const blobKey = `videos/${safeEmail}/${Date.now()}_${file_name}`;
 
-        const blob = await put(blobKey, backendRes.body!, {
+        const blob = await put(blobKey, videoBuffer, {
             access: 'public',
             contentType: 'video/mp4',
         });

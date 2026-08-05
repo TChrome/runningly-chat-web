@@ -40,9 +40,9 @@ const logging = new Logging({
 const logger = logging.log('my_logger');
 
 // ─── Google OAuth Credentials ─────────────────────────────────────────────────
-const GOOGLE_CLIENT_ID = process.env.VITE_GOOGLE_CLIENT_ID || 'your-client-id';
-const GOOGLE_CLIENT_SECRET = process.env.VITE_GOOGLE_CLIENT_SECRET || 'your-client-secret';
-const SESSION_SECRET = process.env.VITE_SESSION_SECRET || 'your-session-secret';
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || 'your-client-id';
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || 'your-client-secret';
+const SESSION_SECRET = process.env.SESSION_SECRET || 'your-session-secret';
 
 // ─── Active Users ─────────────────────────────────────────────────────────────
 const activeUsers: Record<string, User> = {};
