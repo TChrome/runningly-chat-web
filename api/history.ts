@@ -21,7 +21,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // ── GET: Return full history ─────────────────────────────────────────────────
     if (req.method === 'GET') {
         const convResult = await sql`
-      SELECT sender, content, message_id AS id
+      SELECT sender, content, message_id AS id, conversation_id, agent_type
       FROM runningly_conversations
       WHERE user_email = ${email}
       ORDER BY created_at ASC;
@@ -47,9 +47,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const { action, message, video } = body;
 
         if (action === 'append_message' && message) {
+            const convId = message.conversationId || 'default';
+            const agentType = message.agentType || 'remote';
             await sql`
-        INSERT INTO runningly_conversations (user_email, sender, content, message_id)
-        VALUES (${email}, ${message.sender}, ${message.content}, ${message.id || null});
+        INSERT INTO runningly_conversations (user_email, sender, content, message_id, conversation_id, agent_type)
+        VALUES (${email}, ${message.sender}, ${message.content}, ${message.id || null}, ${convId}, ${agentType});
       `;
 
         } else if (action === 'append_video' && video) {
@@ -72,7 +74,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         // Return refreshed state
         const convResult = await sql`
-      SELECT sender, content, message_id AS id
+      SELECT sender, content, message_id AS id, conversation_id, agent_type
       FROM runningly_conversations
       WHERE user_email = ${email}
       ORDER BY created_at ASC;
