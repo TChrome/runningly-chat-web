@@ -1186,3 +1186,580 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: hsla(220, 15%, 35%, 0.8);
 }
+
+/* ────────────────── Task Packs & Category Badges ────────────────── */
+.task-category-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 4px 2px 10px;
+  margin-bottom: 4px;
+  flex-shrink: 0;
+  min-height: 42px;
+  scrollbar-width: none;
+}
+
+.task-category-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.category-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 26px;
+  line-height: 1;
+  padding: 0 12px;
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: 13px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: var(--transition-smooth);
+}
+
+.category-chip:hover {
+  background: var(--bg-card-hover);
+  color: var(--text-primary);
+  border-color: var(--border-card);
+}
+
+.category-chip.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+  box-shadow: 0 2px 8px var(--accent-glow);
+}
+
+.task-pack-group {
+  margin-bottom: 16px;
+}
+
+.task-pack-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 6px;
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-muted);
+}
+
+.task-pack-count {
+  font-size: 10px;
+  background: var(--bg-input);
+  padding: 2px 6px;
+  border-radius: 8px;
+  color: var(--text-dim);
+}
+
+.task-card-category {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: hsla(265, 85%, 65%, 0.15);
+  color: var(--accent-hover);
+  border: 1px solid hsla(265, 85%, 65%, 0.3);
+}
+
+/* ────────────────── Add Task / Import cURL Modal ────────────────── */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(4, 7, 15, 0.75);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+
+.modal-overlay.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.modal-container {
+  width: 90%;
+  max-width: 680px;
+  max-height: 88vh;
+  background: hsl(230, 20%, 10%);
+  border: 1px solid var(--border-card);
+  border-radius: 16px;
+  box-shadow: 0 24px 60px -12px rgba(0, 0, 0, 0.8), 0 0 30px var(--accent-glow);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: hsla(230, 16%, 8%, 0.6);
+}
+
+.modal-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.modal-icon {
+  font-size: 20px;
+}
+
+.modal-title {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.modal-close-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  transition: var(--transition-smooth);
+}
+
+.modal-close-btn:hover {
+  background: var(--bg-card-hover);
+  color: var(--text-primary);
+}
+
+.modal-body {
+  padding: 20px 24px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  display: flex;
+  justify-content: space-between;
+}
+
+.form-label span {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.form-input, .form-textarea, .form-select {
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 10px 14px;
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  transition: var(--transition-smooth);
+}
+
+.form-textarea {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  min-height: 110px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.form-input:focus, .form-textarea:focus, .form-select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 24px;
+  border-top: 1px solid var(--border-subtle);
+  background: hsla(230, 16%, 8%, 0.6);
+}
+
+.btn-secondary {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+}
+
+.btn-secondary:hover {
+  background: var(--bg-card-hover);
+  color: var(--text-primary);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--accent), hsl(265, 75%, 50%));
+  border: none;
+  color: #fff;
+  padding: 8px 18px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 14px var(--accent-glow);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: var(--transition-smooth);
+}
+
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px var(--accent-glow);
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-import-curl {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 12px;
+  margin-top: 6px;
+  margin-bottom: 10px;
+  background: hsla(265, 85%, 65%, 0.12);
+  border: 1px dashed hsla(265, 85%, 65%, 0.4);
+  border-radius: 8px;
+  color: var(--accent-hover);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+}
+
+.btn-import-curl:hover {
+  background: hsla(265, 85%, 65%, 0.22);
+  border-color: var(--accent);
+  color: #fff;
+  box-shadow: 0 0 12px var(--accent-glow);
+}
+
+/* ────────────────── Draggable Workflow Cards & Step Manager ────────────────── */
+.workflow-container {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.workflow-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 2px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+.workflow-cards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.workflow-card {
+  background: hsla(230, 16%, 12%, 0.9);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 12px 14px;
+  transition: transform 0.2s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.2s ease, border-color 0.2s ease;
+  position: relative;
+  user-select: none;
+}
+
+.workflow-card:hover {
+  border-color: var(--border-card);
+  background: hsla(230, 16%, 14%, 0.95);
+}
+
+.workflow-card.dragging {
+  opacity: 0.45;
+  transform: scale(0.98);
+  border: 1px dashed var(--accent);
+}
+
+.workflow-card.drop-above {
+  border-top: 2px solid var(--accent);
+  box-shadow: 0 -4px 12px var(--accent-glow);
+}
+
+.workflow-card.drop-below {
+  border-bottom: 2px solid var(--accent);
+  box-shadow: 0 4px 12px var(--accent-glow);
+}
+
+.workflow-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.workflow-title-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.drag-grip {
+  cursor: grab;
+  color: var(--text-muted);
+  font-size: 16px;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--transition-smooth);
+}
+
+.drag-grip:hover {
+  color: var(--accent);
+  background: hsla(265, 85%, 65%, 0.15);
+}
+
+.drag-grip:active {
+  cursor: grabbing;
+}
+
+.step-badge {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: hsla(265, 85%, 65%, 0.18);
+  color: var(--accent-hover);
+  border: 1px solid hsla(265, 85%, 65%, 0.35);
+}
+
+.workflow-task-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.workflow-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.btn-card-ctrl {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 11px;
+  transition: var(--transition-smooth);
+}
+
+.btn-card-ctrl:hover:not(:disabled) {
+  background: var(--bg-card-hover);
+  color: var(--text-primary);
+  border-color: var(--border-card);
+}
+
+.btn-card-ctrl:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.btn-card-ctrl.btn-delete:hover {
+  background: hsla(0, 80%, 60%, 0.2);
+  color: var(--accent-red);
+  border-color: var(--accent-red);
+}
+
+.workflow-params-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.param-item-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-size: 12.5px;
+  background: rgba(255, 255, 255, 0.02);
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle);
+  flex-wrap: wrap;
+}
+
+.param-label-text {
+  color: var(--text-secondary);
+  font-weight: 500;
+  flex: 1 1 180px;
+  line-height: 1.4;
+}
+
+.param-val-pill {
+  color: var(--accent-cyan);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  background: hsla(185, 80%, 45%, 0.12);
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid hsla(185, 80%, 45%, 0.25);
+  cursor: pointer;
+  transition: var(--transition-smooth);
+}
+
+.param-val-pill:hover {
+  background: hsla(185, 80%, 45%, 0.22);
+  border-color: var(--accent-cyan);
+}
+
+.workflow-actions-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.btn-add-step-pill {
+  background: hsla(230, 20%, 15%, 0.7);
+  border: 1px dashed var(--border-subtle);
+  color: var(--text-secondary);
+  padding: 7px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: var(--transition-smooth);
+}
+
+.btn-add-step-pill:hover {
+  background: hsla(265, 85%, 65%, 0.15);
+  border-color: var(--accent);
+  color: var(--accent-hover);
+}
+
+.add-step-picker-box {
+  position: relative;
+  display: inline-block;
+}
+
+.step-picker-popover {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  width: 280px;
+  max-height: 240px;
+  overflow-y: auto;
+  background: hsl(230, 20%, 11%);
+  border: 1px solid var(--border-card);
+  border-radius: 10px;
+  box-shadow: var(--shadow-premium);
+  z-index: 100;
+  display: none;
+  flex-direction: column;
+  padding: 6px;
+  gap: 4px;
+  animation: slideUp 0.2s ease;
+}
+
+.step-picker-popover.active {
+  display: flex;
+}
+
+.picker-item-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: var(--transition-smooth);
+}
+
+.picker-item-option:hover {
+  background: var(--bg-card-hover);
+  color: var(--text-primary);
+}
+
+.picker-item-cat {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: hsla(265, 85%, 65%, 0.15);
+  color: var(--accent-hover);
+}
+
+

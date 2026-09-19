@@ -25,6 +25,8 @@ export interface TaskConfig {
   output_schema?: Record<string, any>;
   key_map?: Record<string, string>;
   auto_summarize?: boolean;
+  category?: string;
+  file_path?: string;
 }
 
 export interface TaskRunResult {
@@ -33,6 +35,7 @@ export interface TaskRunResult {
   output?: string;
   error?: string;
   summary?: string;
+  status?: string;
 }
 
 export interface ChatMessage {
@@ -62,12 +65,14 @@ export interface ConversationHistorySummary {
 // Configuration & State
 // ─────────────────────────────────────────────────────────────────────────────
 
-const NTQA_API_BASE = 'http://localhost:8000';
+const NTQA_API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? 'https://runningly-api.t-chrome.com' : 'http://localhost:8000');
 
 class NTQAState {
   public sessionId: string = '';
   public availableTasks: TaskConfig[] = [];
   public filteredTasks: TaskConfig[] = [];
+  public categories: string[] = ['All'];
+  public activeCategory: string = 'All';
   public historyList: ConversationHistorySummary[] = [];
   public messages: ChatMessage[] = [];
   public isExecuting: boolean = false;
@@ -130,6 +135,20 @@ appEl.innerHTML = `
           <input type="text" id="sidebarSearchInput" placeholder="Filter tasks or history..." />
         </div>
 
+        <!-- Import cURL / Add Task Button -->
+        <button class="btn-import-curl" id="btnOpenImportModal">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          <span>Import cURL / AI Task</span>
+        </button>
+
+        <!-- Category / Pack Filter Pills -->
+        <div class="task-category-bar" id="taskCategoryBar">
+          <!-- Dynamically populated -->
+        </div>
+
         <!-- Task List View -->
         <div class="task-list" id="taskListContainer">
           <!-- Dynamically populated -->
@@ -169,6 +188,12 @@ appEl.innerHTML = `
           </div>
         </div>
         <div class="topbar-actions">
+          <button class="topbar-btn" id="btnTopImportModal" title="Import cURL or CLI command into a task">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 5v14M5 12h14"></path>
+            </svg>
+            <span>Import cURL</span>
+          </button>
           <button class="topbar-btn" id="btnRefreshTasks" title="Refresh task library from server">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
@@ -271,6 +296,68 @@ appEl.innerHTML = `
       </div>
     </main>
   </div>
+
+  <!-- Modal: Import cURL / Add Task -->
+  <div class="modal-overlay" id="importTaskModal">
+    <div class="modal-container">
+      <div class="modal-header">
+        <div class="modal-title-row">
+          <span class="modal-icon">✨</span>
+          <span class="modal-title">AI Task Builder (cURL, CLI or Prompt)</span>
+        </div>
+        <button class="modal-close-btn" id="btnCloseImportModal">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">
+            cURL Command, CLI Snippet, or Detailed Prompt
+            <span>Provide raw command OR describe what the script should do</span>
+          </label>
+          <textarea
+            class="form-textarea"
+            id="modalCommandInput"
+            placeholder="Option A (cURL): curl -X POST https://api.okta.com/api/v1/users -d '...'&#10;Option B (Prompt): Create a task that checks all AWS S3 buckets in us-east-1 and returns buckets without server-side encryption enabled."
+          ></textarea>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div class="form-group">
+            <label class="form-label">Task Pack / Category</label>
+            <input type="text" class="form-input" id="modalCategoryInput" placeholder="e.g. Okta, AWS, GitHub, System, Database" value="Custom" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Optional Task Name</label>
+            <input type="text" class="form-input" id="modalTaskNameInput" placeholder="e.g. Audit S3 Bucket Encryption" />
+          </div>
+        </div>
+
+        <button class="btn-primary" id="btnGenerateTaskAI" style="width: 100%; justify-content: center;">
+          <span>⚡ Auto-Generate Task Schema with Gemini</span>
+        </button>
+
+        <div class="form-group" id="modalPreviewGroup" style="display: none;">
+          <label class="form-label">
+            Generated Task Schema (JSON Preview / Edit)
+            <span>Review parameters & \${answerN} bindings</span>
+          </label>
+          <textarea class="form-textarea" id="modalJsonPreview" style="min-height: 140px;"></textarea>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn-secondary" id="btnCancelImportModal">Cancel</button>
+        <button class="btn-primary" id="btnSaveTaskToLibrary" disabled>
+          <span>💾 Save to Task Library</span>
+        </button>
+      </div>
+    </div>
+  </div>
 `;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -285,9 +372,12 @@ const tabBtnHistory = document.querySelector('#tabBtnHistory') as HTMLButtonElem
 const tasksCountBadge = document.querySelector('#tasksCountBadge') as HTMLElement;
 const historyCountBadge = document.querySelector('#historyCountBadge') as HTMLElement;
 const sidebarSearchInput = document.querySelector('#sidebarSearchInput') as HTMLInputElement;
+const taskCategoryBar = document.querySelector('#taskCategoryBar') as HTMLElement;
 const taskListContainer = document.querySelector('#taskListContainer') as HTMLElement;
 const historyListContainer = document.querySelector('#historyListContainer') as HTMLElement;
 const btnClearHistory = document.querySelector('#btnClearHistory') as HTMLButtonElement;
+const btnOpenImportModal = document.querySelector('#btnOpenImportModal') as HTMLButtonElement;
+const btnTopImportModal = document.querySelector('#btnTopImportModal') as HTMLButtonElement;
 const sidebarResizer = document.querySelector('#sidebarResizer') as HTMLElement;
 const ntqaLayout = document.querySelector('#ntqaLayout') as HTMLElement;
 const sessionTitleDisplay = document.querySelector('#sessionTitleDisplay') as HTMLElement;
@@ -298,6 +388,19 @@ const promptInput = document.querySelector('#promptInput') as HTMLTextAreaElemen
 const btnSend = document.querySelector('#btnSend') as HTMLButtonElement;
 const btnMic = document.querySelector('#btnMic') as HTMLButtonElement;
 const suggestionsGrid = document.querySelector('#suggestionsGrid') as HTMLElement;
+
+// Modal Elements
+const importTaskModal = document.querySelector('#importTaskModal') as HTMLElement;
+const btnCloseImportModal = document.querySelector('#btnCloseImportModal') as HTMLButtonElement;
+const btnCancelImportModal = document.querySelector('#btnCancelImportModal') as HTMLButtonElement;
+const btnGenerateTaskAI = document.querySelector('#btnGenerateTaskAI') as HTMLButtonElement;
+const btnSaveTaskToLibrary = document.querySelector('#btnSaveTaskToLibrary') as HTMLButtonElement;
+const modalCommandInput = document.querySelector('#modalCommandInput') as HTMLTextAreaElement;
+const modalCategoryInput = document.querySelector('#modalCategoryInput') as HTMLInputElement;
+const modalTaskNameInput = document.querySelector('#modalTaskNameInput') as HTMLInputElement;
+const modalPreviewGroup = document.querySelector('#modalPreviewGroup') as HTMLElement;
+const modalJsonPreview = document.querySelector('#modalJsonPreview') as HTMLTextAreaElement;
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // API Methods & SQLite Operations
@@ -313,7 +416,9 @@ async function loadAvailableTasks(): Promise<void> {
     const data = await res.json();
     state.availableTasks = data.tasks || [];
     state.filteredTasks = [...state.availableTasks];
+    state.categories = ['All', ...(data.categories || [])];
     tasksCountBadge.textContent = state.availableTasks.length.toString();
+    renderCategoryBar();
     renderTasksList();
     setServerStatus(true);
   } catch (err) {
@@ -547,6 +652,37 @@ async function executeTasks(tasks: any[], pause: boolean = false): Promise<void>
       meta: { results: data.results || [] }
     });
 
+    // Check if any completed task yielded a downloadable file and trigger direct in-browser download
+    if (Array.isArray(data.results)) {
+      for (const taskRes of data.results) {
+        let parsedMeta: any = null;
+        if (taskRes.output) {
+          try {
+            parsedMeta = JSON.parse(taskRes.output);
+          } catch {
+            for (const line of taskRes.output.split('\n').reverse()) {
+              const l = line.trim();
+              if (l.startsWith('{') && l.endsWith('}')) {
+                try { parsedMeta = JSON.parse(l); break; } catch {}
+              }
+            }
+          }
+        }
+        if (parsedMeta && (parsedMeta.download_file || parsedMeta.download_url)) {
+          const dlFile = parsedMeta.download_file || parsedMeta.file_name || 'download';
+          const dlUrl = parsedMeta.download_url || `/download?file=${encodeURIComponent(dlFile)}`;
+          // Direct in-browser download trigger (same tab, no new window)
+          const dlLink = document.createElement('a');
+          dlLink.href = dlUrl;
+          dlLink.download = dlFile;
+          dlLink.style.display = 'none';
+          document.body.appendChild(dlLink);
+          dlLink.click();
+          document.body.removeChild(dlLink);
+        }
+      }
+    }
+
     renderChatStream();
     scrollToBottom();
     await loadHistoryList();
@@ -571,42 +707,88 @@ async function executeTasks(tasks: any[], pause: boolean = false): Promise<void>
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Render task library cards in the left sidebar.
+ * Render category filter chips (Task Packs).
+ */
+function renderCategoryBar(): void {
+  if (!taskCategoryBar) return;
+  const cats = Array.from(new Set(['All', ...state.availableTasks.map(t => t.category || 'General')]));
+  state.categories = cats;
+
+  taskCategoryBar.innerHTML = cats.map(cat => {
+    const isActive = state.activeCategory === cat;
+    return `<button class="category-chip ${isActive ? 'active' : ''}" data-cat="${escapeHtml(cat)}">${escapeHtml(cat)}</button>`;
+  }).join('');
+
+  taskCategoryBar.querySelectorAll('.category-chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.activeCategory = btn.getAttribute('data-cat') || 'All';
+      renderCategoryBar();
+      renderTasksList();
+    });
+  });
+}
+
+/**
+ * Render task library cards in the left sidebar grouped by category.
  */
 function renderTasksList(): void {
   const query = sidebarSearchInput.value.toLowerCase().trim();
-  const filtered = state.availableTasks.filter(t =>
-    t.task_name.toLowerCase().includes(query) ||
-    t.description.toLowerCase().includes(query)
-  );
+  const filtered = state.availableTasks.filter(t => {
+    const matchesQuery = t.task_name.toLowerCase().includes(query) || t.description.toLowerCase().includes(query);
+    const matchesCategory = state.activeCategory === 'All' || (t.category || 'General').toLowerCase() === state.activeCategory.toLowerCase();
+    return matchesQuery && matchesCategory;
+  });
 
   if (filtered.length === 0) {
     taskListContainer.innerHTML = `
       <div style="text-align: center; color: var(--text-muted); padding: 24px 8px; font-size: 13px;">
-        No tasks found matching "${escapeHtml(query)}"
+        No tasks found in pack "${escapeHtml(state.activeCategory)}" ${query ? `matching "${escapeHtml(query)}"` : ''}
       </div>
     `;
     return;
   }
 
-  taskListContainer.innerHTML = filtered.map(task => {
-    const questionsHtml = (task.questions || [])
-      .map(q => `<span class="question-chip">${escapeHtml(q.replace(/\*+$/, ''))}</span>`)
-      .join('');
+  // Group by category
+  const groups: Record<string, TaskConfig[]> = {};
+  filtered.forEach(task => {
+    const cat = task.category || 'General';
+    if (!groups[cat]) groups[cat] = [];
+    groups[cat].push(task);
+  });
+
+  taskListContainer.innerHTML = Object.entries(groups).map(([catName, tasks]) => {
+    const cardsHtml = tasks.map(task => {
+      const questionsHtml = (task.questions || [])
+        .map(q => `<span class="question-chip">${escapeHtml(q.replace(/\*+$/, ''))}</span>`)
+        .join('');
+
+      return `
+        <div class="task-card" data-task-name="${escapeHtml(task.task_name)}">
+          <div class="task-card-header">
+            <span class="task-card-title">${escapeHtml(task.task_name)}</span>
+            <div style="display: flex; gap: 4px; align-items: center;">
+              <span class="task-card-category">${escapeHtml(task.category || 'Task')}</span>
+              <span class="task-pill">${task.command ? 'CLI' : 'APP'}</span>
+            </div>
+          </div>
+          <p class="task-card-desc">${escapeHtml(task.description)}</p>
+          ${questionsHtml ? `<div class="task-card-questions">${questionsHtml}</div>` : ''}
+        </div>
+      `;
+    }).join('');
 
     return `
-      <div class="task-card" data-task-name="${escapeHtml(task.task_name)}">
-        <div class="task-card-header">
-          <span class="task-card-title">${escapeHtml(task.task_name)}</span>
-          <span class="task-pill">${task.command ? 'CLI' : 'APP'}</span>
+      <div class="task-pack-group">
+        <div class="task-pack-header">
+          <span>📦 ${escapeHtml(catName)}</span>
+          <span class="task-pack-count">${tasks.length}</span>
         </div>
-        <p class="task-card-desc">${escapeHtml(task.description)}</p>
-        ${questionsHtml ? `<div class="task-card-questions">${questionsHtml}</div>` : ''}
+        ${cardsHtml}
       </div>
     `;
   }).join('');
 
-  // Attach click events to insert task prompt or run
+  // Attach click events to insert task prompt
   taskListContainer.querySelectorAll('.task-card').forEach(card => {
     card.addEventListener('click', () => {
       const taskName = card.getAttribute('data-task-name') || '';
@@ -615,6 +797,99 @@ function renderTasksList(): void {
       adjustTextareaHeight(promptInput);
     });
   });
+}
+
+// ────────────────── Import cURL / Add Task Modal Logic ──────────────────
+
+function openImportModal(): void {
+  importTaskModal.classList.add('active');
+  modalCommandInput.value = '';
+  modalTaskNameInput.value = '';
+  modalCategoryInput.value = state.activeCategory !== 'All' ? state.activeCategory : 'Custom';
+  modalPreviewGroup.style.display = 'none';
+  modalJsonPreview.value = '';
+  btnSaveTaskToLibrary.disabled = true;
+  modalCommandInput.focus();
+}
+
+function closeImportModal(): void {
+  importTaskModal.classList.remove('active');
+}
+
+async function handleGenerateTaskFromModal(): Promise<void> {
+  const snippet = modalCommandInput.value.trim();
+  if (!snippet) {
+    alert('Please enter a cURL command or CLI snippet first.');
+    return;
+  }
+
+  btnGenerateTaskAI.disabled = true;
+  btnGenerateTaskAI.innerHTML = '<span>⏳ Generating with Gemini...</span>';
+
+  try {
+    const res = await fetch(`${NTQA_API_BASE}/tasks/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        command_snippet: snippet,
+        task_name: modalTaskNameInput.value.trim() || undefined,
+        category: modalCategoryInput.value.trim() || 'Custom'
+      })
+    });
+
+    if (!res.ok) {
+      const errData = await res.json();
+      throw new Error(errData.detail || `HTTP ${res.status}`);
+    }
+
+    const data = await res.json();
+    modalPreviewGroup.style.display = 'flex';
+    modalJsonPreview.value = JSON.stringify(data.task, null, 2);
+    btnSaveTaskToLibrary.disabled = false;
+  } catch (err: any) {
+    alert(`Failed to generate task schema: ${err.message}`);
+  } finally {
+    btnGenerateTaskAI.disabled = false;
+    btnGenerateTaskAI.innerHTML = '<span>⚡ Auto-Generate Task Schema with Gemini</span>';
+  }
+}
+
+async function handleSaveTaskFromModal(): Promise<void> {
+  let parsedTask: any;
+  try {
+    parsedTask = JSON.parse(modalJsonPreview.value);
+  } catch (err) {
+    alert('Invalid JSON in schema preview. Please fix JSON syntax before saving.');
+    return;
+  }
+
+  btnSaveTaskToLibrary.disabled = true;
+  btnSaveTaskToLibrary.innerHTML = '<span>💾 Saving...</span>';
+
+  try {
+    const res = await fetch(`${NTQA_API_BASE}/tasks/save`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        task: parsedTask,
+        category: modalCategoryInput.value.trim() || parsedTask.category || 'Custom'
+      })
+    });
+
+    if (!res.ok) {
+      const errData = await res.json();
+      throw new Error(errData.detail || `HTTP ${res.status}`);
+    }
+
+    await loadAvailableTasks();
+    closeImportModal();
+    alert(`✅ Task "${parsedTask.task_name}" saved successfully into the task library!`);
+  } catch (err: any) {
+    alert(`Failed to save task: ${err.message}`);
+  } finally {
+    btnSaveTaskToLibrary.disabled = false;
+    btnSaveTaskToLibrary.innerHTML = '<span>💾 Save to Task Library</span>';
+  }
 }
 
 /**
@@ -694,45 +969,118 @@ function formatParamLabel(rawKey: string): string {
   return cleaned || rawKey;
 }
 
-function renderTaskCards(tasks: any[], index: number): string {
+function renderTaskCards(tasks: any[], msgIndex: number): string {
   if (!tasks || !Array.isArray(tasks) || tasks.length === 0) return '';
-  const taskCards = tasks.map(t => {
+
+  const taskCards = tasks.map((t, tIdx) => {
     const taskName = t.task || 'Task';
     const data = t.data || {};
     const entries = Object.entries(data);
+
     const paramPills = entries.map(([k, v]) => {
       const cleanKey = formatParamLabel(k);
       return `
-        <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 12.5px; background: rgba(255,255,255,0.03); padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border-subtle); flex-wrap: wrap;">
-          <span style="color: var(--text-secondary); font-weight: 500; flex: 1 1 200px; line-height: 1.4;">${escapeHtml(cleanKey)}:</span>
-          <span style="color: var(--accent-cyan); font-family: monospace; font-size: 12.5px; font-weight: 600; background: hsla(185, 80%, 45%, 0.12); padding: 4px 10px; border-radius: 6px; border: 1px solid hsla(185, 80%, 45%, 0.25); white-space: nowrap; word-break: keep-all; flex-shrink: 0; max-width: 100%; overflow-x: auto;">${escapeHtml(String(v))}</span>
+        <div class="param-item-row">
+          <span class="param-label-text">${escapeHtml(cleanKey)}:</span>
+          <span
+            class="param-val-pill"
+            data-action="edit-param"
+            data-msg-idx="${msgIndex}"
+            data-task-idx="${tIdx}"
+            data-param-key="${escapeHtml(k)}"
+            data-param-val="${escapeHtml(String(v))}"
+            title="Click to edit parameter"
+          >
+            ✏️ ${escapeHtml(String(v))}
+          </span>
         </div>
       `;
     }).join('');
 
     return `
-      <div style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 12px 14px; margin-top: 8px;">
-        <div style="display: flex; align-items: center; gap: 8px; font-weight: 600; color: var(--text-primary); font-size: 13.5px; margin-bottom: 8px;">
-          <span style="color: var(--accent-blue);">⚙️</span>
-          <span>${escapeHtml(taskName)}</span>
+      <div
+        class="workflow-card"
+        draggable="true"
+        data-msg-idx="${msgIndex}"
+        data-task-idx="${tIdx}"
+      >
+        <div class="workflow-card-top">
+          <div class="workflow-title-box">
+            <span class="drag-grip" title="Drag to reorder step">⠿</span>
+            <span class="step-badge">Step ${tIdx + 1}</span>
+            <span class="workflow-task-title">⚙️ ${escapeHtml(taskName)}</span>
+          </div>
+          <div class="workflow-controls">
+            <button
+              class="btn-card-ctrl"
+              data-action="move-up"
+              data-msg-idx="${msgIndex}"
+              data-task-idx="${tIdx}"
+              title="Move step up"
+              ${tIdx === 0 ? 'disabled' : ''}
+            >▲</button>
+            <button
+              class="btn-card-ctrl"
+              data-action="move-down"
+              data-msg-idx="${msgIndex}"
+              data-task-idx="${tIdx}"
+              title="Move step down"
+              ${tIdx === tasks.length - 1 ? 'disabled' : ''}
+            >▼</button>
+            <button
+              class="btn-card-ctrl btn-delete"
+              data-action="delete-task"
+              data-msg-idx="${msgIndex}"
+              data-task-idx="${tIdx}"
+              title="Remove step"
+            >✕</button>
+          </div>
         </div>
-        <div style="display: flex; flex-direction: column; gap: 6px;">
-          ${paramPills || '<div style="color: var(--text-tertiary); font-size: 12px;">No parameters required</div>'}
+
+        <div class="workflow-params-list">
+          ${paramPills || '<div style="color: var(--text-muted); font-size: 12px; padding: 4px;">No parameters required</div>'}
         </div>
       </div>
     `;
   }).join('');
 
-  return `
-    <div style="margin-top: 10px;">
-      <div style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-tertiary); font-weight: 600;">
-        Configured Tasks (${tasks.length})
+  // Available tasks picker options
+  const taskOptionsHtml = state.availableTasks.map(avail => {
+    return `
+      <div
+        class="picker-item-option"
+        data-action="select-add-task"
+        data-msg-idx="${msgIndex}"
+        data-task-name="${escapeHtml(avail.task_name)}"
+      >
+        <span>${escapeHtml(avail.task_name)}</span>
+        <span class="picker-item-cat">${escapeHtml(avail.category || 'Task')}</span>
       </div>
-      <div style="display: flex; flex-direction: column; gap: 6px;">
+    `;
+  }).join('');
+
+  return `
+    <div class="workflow-container">
+      <div class="workflow-header-row">
+        <span>Workflow Sequence (${tasks.length} Steps) • Drag to Reorder</span>
+      </div>
+
+      <div class="workflow-cards-list" id="workflowList_${msgIndex}">
         ${taskCards}
       </div>
-      <div class="task-action-bar" style="margin-top: 12px;">
-        <button class="btn-execute-now" id="btnRunNow_${index}">
+
+      <div class="workflow-actions-footer">
+        <div class="add-step-picker-box">
+          <button class="btn-add-step-pill" id="btnToggleAddStep_${msgIndex}">
+            <span>+ Add Step to Workflow</span>
+          </button>
+          <div class="step-picker-popover" id="stepPickerPopover_${msgIndex}">
+            <div style="font-size: 11px; font-weight: 700; color: var(--text-muted); padding: 4px 6px; text-transform: uppercase;">Select Task to Insert</div>
+            ${taskOptionsHtml}
+          </div>
+        </div>
+
+        <button class="btn-execute-now" id="btnRunNow_${msgIndex}">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
             <polygon points="5 3 19 12 5 21 5 3"></polygon>
           </svg>
@@ -771,9 +1119,34 @@ function renderChatStream(): void {
       // ─── Collapsible Machine Execution Section ───────────────────────
       const results: TaskRunResult[] = msg.meta.results;
       const executionCardsHtml = results.map(res => {
-        const hasError = !!res.error;
+        const hasError = res.status ? res.status === 'error' : (!!res.error && !res.output);
         const statusClass = hasError ? 'error' : 'success';
         const statusText = hasError ? 'Failed' : 'Executed Successfully';
+
+        let downloadInfo: { url: string; filename: string } | null = null;
+        if (res.output) {
+          try {
+            const p = JSON.parse(res.output);
+            if (p.download_file || p.download_url) {
+              const fn = p.download_file || p.file_name || 'download';
+              downloadInfo = { url: p.download_url || `/download?file=${encodeURIComponent(fn)}`, filename: fn };
+            }
+          } catch {
+            for (const l of res.output.split('\n').reverse()) {
+              const str = l.trim();
+              if (str.startsWith('{') && str.endsWith('}')) {
+                try {
+                  const p = JSON.parse(str);
+                  if (p.download_file || p.download_url) {
+                    const fn = p.download_file || p.file_name || 'download';
+                    downloadInfo = { url: p.download_url || `/download?file=${encodeURIComponent(fn)}`, filename: fn };
+                    break;
+                  }
+                } catch {}
+              }
+            }
+          }
+        }
 
         return `
           <div class="machine-execution-card">
@@ -789,6 +1162,13 @@ function renderChatStream(): void {
               <div class="execution-ai-summary">
                 <div class="ai-summary-label">Summary & Insights</div>
                 <div>${escapeHtml(res.summary)}</div>
+              </div>
+            ` : ''}
+
+            ${downloadInfo ? `
+              <div style="margin: 8px 12px; padding: 8px 12px; background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.25); border-radius: 6px; display: flex; align-items: center; justify-content: space-between;">
+                <span style="font-size: 13px; font-weight: 500; color: var(--text-primary);">📥 Ready: <strong>${escapeHtml(downloadInfo.filename)}</strong></span>
+                <a href="${escapeHtml(downloadInfo.url)}" download="${escapeHtml(downloadInfo.filename)}" style="padding: 4px 10px; background: var(--accent); color: #fff; border-radius: 5px; text-decoration: none; font-size: 12px; font-weight: 600; cursor: pointer;">Download</a>
               </div>
             ` : ''}
 
@@ -855,6 +1235,8 @@ function renderChatStream(): void {
       }
 
       if (inlineTasks && inlineTasks.length > 0) {
+        if (!msg.meta) msg.meta = {};
+        msg.meta.tasks = inlineTasks;
         state.currentPendingTasks = inlineTasks;
         innerContentHtml = `
           <div style="color: var(--text-primary); font-size: 14.5px; font-weight: 500;">
@@ -883,30 +1265,199 @@ function renderChatStream(): void {
     `;
   }).join('');
 
-  // Attach dynamic "Run Tasks Now" button clicks
-  state.messages.forEach((msg, index) => {
-    let tasksToRun = msg.meta?.tasks;
-    if ((!tasksToRun || tasksToRun.length === 0) && msg.content) {
-      try {
-        const trimmed = msg.content.trim();
-        if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
-          const parsed = JSON.parse(trimmed);
-          const candidate = Array.isArray(parsed) ? parsed : [parsed];
-          if (candidate.every(t => typeof t === 'object' && t !== null && 'task' in t)) {
-            tasksToRun = candidate;
-          }
-        }
-      } catch (e) {}
-    }
+  attachWorkflowCardListeners();
+}
 
-    if (tasksToRun && tasksToRun.length > 0) {
-      const btn = document.querySelector(`#btnRunNow_${index}`);
-      if (btn) {
-        btn.addEventListener('click', () => {
-          executeTasks(tasksToRun!, false);
+/**
+ * Attach Drag-and-Drop, Move Up/Down, Delete, Add Step, and Edit Parameter event handlers.
+ */
+function attachWorkflowCardListeners(): void {
+  // 1. Run Tasks Now Buttons
+  state.messages.forEach((msg, msgIdx) => {
+    const tasks = msg.meta?.tasks;
+    if (tasks && tasks.length > 0) {
+      const runBtn = document.querySelector(`#btnRunNow_${msgIdx}`);
+      if (runBtn) {
+        runBtn.addEventListener('click', () => {
+          executeTasks(tasks, false);
+        });
+      }
+
+      // Add Step Popover toggle
+      const addStepBtn = document.querySelector(`#btnToggleAddStep_${msgIdx}`);
+      const popover = document.querySelector(`#stepPickerPopover_${msgIdx}`);
+      if (addStepBtn && popover) {
+        addStepBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          popover.classList.toggle('active');
         });
       }
     }
+  });
+
+  // Close popovers on outside click
+  document.addEventListener('click', () => {
+    document.querySelectorAll('.step-picker-popover.active').forEach(p => p.classList.remove('active'));
+  });
+
+  // 2. Select Add Task Option
+  document.querySelectorAll('[data-action="select-add-task"]').forEach(el => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const msgIdx = parseInt(el.getAttribute('data-msg-idx') || '-1', 10);
+      const taskName = el.getAttribute('data-task-name') || '';
+      if (msgIdx >= 0 && taskName && state.messages[msgIdx]?.meta?.tasks) {
+        const found = state.availableTasks.find(t => t.task_name === taskName);
+        const defaultData: Record<string, string> = {};
+        if (found && found.questions) {
+          found.questions.forEach(q => {
+            defaultData[q] = '';
+          });
+        }
+        state.messages[msgIdx].meta!.tasks.push({
+          task: taskName,
+          data: defaultData
+        });
+        state.currentPendingTasks = state.messages[msgIdx].meta!.tasks;
+        renderChatStream();
+      }
+    });
+  });
+
+  // 3. Move Step Up
+  document.querySelectorAll('[data-action="move-up"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const msgIdx = parseInt(btn.getAttribute('data-msg-idx') || '-1', 10);
+      const taskIdx = parseInt(btn.getAttribute('data-task-idx') || '-1', 10);
+      if (msgIdx >= 0 && taskIdx > 0 && state.messages[msgIdx]?.meta?.tasks) {
+        const tasks = state.messages[msgIdx].meta!.tasks;
+        const temp = tasks[taskIdx];
+        tasks[taskIdx] = tasks[taskIdx - 1];
+        tasks[taskIdx - 1] = temp;
+        state.currentPendingTasks = tasks;
+        renderChatStream();
+      }
+    });
+  });
+
+  // 4. Move Step Down
+  document.querySelectorAll('[data-action="move-down"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const msgIdx = parseInt(btn.getAttribute('data-msg-idx') || '-1', 10);
+      const taskIdx = parseInt(btn.getAttribute('data-task-idx') || '-1', 10);
+      if (msgIdx >= 0 && taskIdx >= 0 && state.messages[msgIdx]?.meta?.tasks) {
+        const tasks = state.messages[msgIdx].meta!.tasks;
+        if (taskIdx < tasks.length - 1) {
+          const temp = tasks[taskIdx];
+          tasks[taskIdx] = tasks[taskIdx + 1];
+          tasks[taskIdx + 1] = temp;
+          state.currentPendingTasks = tasks;
+          renderChatStream();
+        }
+      }
+    });
+  });
+
+  // 5. Delete Step
+  document.querySelectorAll('[data-action="delete-task"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const msgIdx = parseInt(btn.getAttribute('data-msg-idx') || '-1', 10);
+      const taskIdx = parseInt(btn.getAttribute('data-task-idx') || '-1', 10);
+      if (msgIdx >= 0 && taskIdx >= 0 && state.messages[msgIdx]?.meta?.tasks) {
+        const tasks = state.messages[msgIdx].meta!.tasks;
+        tasks.splice(taskIdx, 1);
+        state.currentPendingTasks = tasks;
+        renderChatStream();
+      }
+    });
+  });
+
+  // 6. Edit Parameter Inline
+  document.querySelectorAll('[data-action="edit-param"]').forEach(pill => {
+    pill.addEventListener('click', () => {
+      const msgIdx = parseInt(pill.getAttribute('data-msg-idx') || '-1', 10);
+      const taskIdx = parseInt(pill.getAttribute('data-task-idx') || '-1', 10);
+      const paramKey = pill.getAttribute('data-param-key') || '';
+      const currentVal = pill.getAttribute('data-param-val') || '';
+
+      if (msgIdx >= 0 && taskIdx >= 0 && paramKey && state.messages[msgIdx]?.meta?.tasks) {
+        const newVal = prompt(`Edit parameter value for "${formatParamLabel(paramKey)}":`, currentVal);
+        if (newVal !== null && newVal !== currentVal) {
+          state.messages[msgIdx].meta!.tasks[taskIdx].data[paramKey] = newVal;
+          state.currentPendingTasks = state.messages[msgIdx].meta!.tasks;
+          renderChatStream();
+        }
+      }
+    });
+  });
+
+  // 7. Drag and Drop Reordering Handlers
+  let draggedCard: HTMLElement | null = null;
+  let dragSrcMsgIdx = -1;
+  let dragSrcTaskIdx = -1;
+
+  document.querySelectorAll('.workflow-card').forEach(cardEl => {
+    const card = cardEl as HTMLElement;
+
+    card.addEventListener('dragstart', (e: DragEvent) => {
+      draggedCard = card;
+      dragSrcMsgIdx = parseInt(card.getAttribute('data-msg-idx') || '-1', 10);
+      dragSrcTaskIdx = parseInt(card.getAttribute('data-task-idx') || '-1', 10);
+      card.classList.add('dragging');
+      if (e.dataTransfer) {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', `${dragSrcMsgIdx}:${dragSrcTaskIdx}`);
+      }
+    });
+
+    card.addEventListener('dragover', (e: DragEvent) => {
+      e.preventDefault();
+      if (!draggedCard || draggedCard === card) return;
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+
+      const rect = card.getBoundingClientRect();
+      const midY = rect.top + rect.height / 2;
+      if (e.clientY < midY) {
+        card.classList.add('drop-above');
+        card.classList.remove('drop-below');
+      } else {
+        card.classList.add('drop-below');
+        card.classList.remove('drop-above');
+      }
+    });
+
+    card.addEventListener('dragleave', () => {
+      card.classList.remove('drop-above', 'drop-below');
+    });
+
+    card.addEventListener('drop', (e: DragEvent) => {
+      e.preventDefault();
+      card.classList.remove('drop-above', 'drop-below');
+      if (!draggedCard || draggedCard === card) return;
+
+      const targetMsgIdx = parseInt(card.getAttribute('data-msg-idx') || '-1', 10);
+      const targetTaskIdx = parseInt(card.getAttribute('data-task-idx') || '-1', 10);
+
+      if (dragSrcMsgIdx === targetMsgIdx && dragSrcMsgIdx >= 0 && state.messages[dragSrcMsgIdx]?.meta?.tasks) {
+        const tasks = state.messages[dragSrcMsgIdx].meta!.tasks;
+        const [movedItem] = tasks.splice(dragSrcTaskIdx, 1);
+
+        const rect = card.getBoundingClientRect();
+        const midY = rect.top + rect.height / 2;
+        const insertIdx = e.clientY < midY ? targetTaskIdx : targetTaskIdx + 1;
+        const finalIdx = dragSrcTaskIdx < insertIdx ? insertIdx - 1 : insertIdx;
+
+        tasks.splice(finalIdx, 0, movedItem);
+        state.currentPendingTasks = tasks;
+        renderChatStream();
+      }
+    });
+
+    card.addEventListener('dragend', () => {
+      card.classList.remove('dragging');
+      document.querySelectorAll('.workflow-card').forEach(c => c.classList.remove('drop-above', 'drop-below', 'dragging'));
+      draggedCard = null;
+    });
   });
 }
 
@@ -1053,6 +1604,18 @@ btnNewChat.addEventListener('click', () => {
 // Refresh Tasks button
 btnRefreshTasks.addEventListener('click', async () => {
   await loadAvailableTasks();
+});
+
+// Import cURL Modal open/close/generate/save
+btnOpenImportModal.addEventListener('click', openImportModal);
+btnTopImportModal.addEventListener('click', openImportModal);
+btnCloseImportModal.addEventListener('click', closeImportModal);
+btnCancelImportModal.addEventListener('click', closeImportModal);
+btnGenerateTaskAI.addEventListener('click', handleGenerateTaskFromModal);
+btnSaveTaskToLibrary.addEventListener('click', handleSaveTaskFromModal);
+
+importTaskModal.addEventListener('click', (e) => {
+  if (e.target === importTaskModal) closeImportModal();
 });
 
 // Clear All History button

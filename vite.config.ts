@@ -119,10 +119,50 @@ function runniglyAuthPlugin() {
             server.middlewares.use(passport.session() as any);
 
             // Serve downloads
+            server.middlewares.use('/download', (req: IncomingMessage, res: ServerResponse, next: () => void) => {
+                const url = new URL(req.url || '', `http://${req.headers.host || 'localhost'}`);
+                const target = url.searchParams.get('file') || url.searchParams.get('vf') || path.basename(url.pathname);
+                if (!target) { res.writeHead(400); res.end('Missing file param'); return; }
+                const safeName = path.basename(target);
+                const candidates = [
+                    path.join(downloadsDir, safeName),
+                    path.join(__dirname, '..', 'NTQA', safeName),
+                    path.join(__dirname, '..', 'NTQA', 'snapshots', safeName)
+                ];
+                const foundFile = candidates.find(c => fs.existsSync(c) && fs.statSync(c).isFile());
+                if (foundFile) {
+                    res.setHeader('Content-Disposition', `attachment; filename="${safeName}"`);
+                    res.setHeader('Content-Type', 'application/octet-stream');
+                    fs.createReadStream(foundFile).pipe(res);
+                } else {
+                    res.writeHead(404); res.end('File not found');
+                }
+            });
+
+            server.middlewares.use('/download_file', (req: IncomingMessage, res: ServerResponse, next: () => void) => {
+                const url = new URL(req.url || '', `http://${req.headers.host || 'localhost'}`);
+                const target = url.searchParams.get('file') || url.searchParams.get('vf') || path.basename(url.pathname);
+                if (!target) { res.writeHead(400); res.end('Missing file param'); return; }
+                const safeName = path.basename(target);
+                const candidates = [
+                    path.join(downloadsDir, safeName),
+                    path.join(__dirname, '..', 'NTQA', safeName),
+                    path.join(__dirname, '..', 'NTQA', 'snapshots', safeName)
+                ];
+                const foundFile = candidates.find(c => fs.existsSync(c) && fs.statSync(c).isFile());
+                if (foundFile) {
+                    res.setHeader('Content-Disposition', `attachment; filename="${safeName}"`);
+                    res.setHeader('Content-Type', 'application/octet-stream');
+                    fs.createReadStream(foundFile).pipe(res);
+                } else {
+                    res.writeHead(404); res.end('File not found');
+                }
+            });
+
             server.middlewares.use('/static/downloads', (req: IncomingMessage, res: ServerResponse, next: () => void) => {
                 const file = path.join(downloadsDir, path.basename((req.url || '').split('?')[0]));
-                if (fs.existsSync(file)) {
-                    res.setHeader('Content-Type', 'video/mp4');
+                if (fs.existsSync(file) && fs.statSync(file).isFile()) {
+                    res.setHeader('Content-Type', 'application/octet-stream');
                     fs.createReadStream(file).pipe(res);
                 } else {
                     res.writeHead(404); res.end('Not found');
@@ -373,4 +413,12 @@ export default defineConfig({
         port: 5000,
         host: true,
     },
+    build: {
+        rollupOptions: {
+            input: {
+                main: path.resolve(__dirname, 'index.html'),
+                ntqa: path.resolve(__dirname, 'ntqa.html')
+            }
+        }
+    }
 });

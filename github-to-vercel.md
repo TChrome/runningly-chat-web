@@ -19,6 +19,11 @@ Because Vercel's free tier does not support GitHub Organization repositories, we
 ## 2. First Deployment
 Run the following command in the root of your `runningly-chat-web` folder:
 ```bash
+npm run build:secure && vercel --prod vercel-ship
+or 
+npm run build
+vercel --prod --force
+or 
 vercel --prod
 ```
 Answer the prompts as follows:
