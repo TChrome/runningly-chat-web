@@ -98,7 +98,7 @@ appEl.innerHTML = `
         <div class="sidebar-brand-row">
           <div class="sidebar-brand">
             <div class="brand-icon-badge">⚡</div>
-            <div class="brand-text">NTQA Hub</div>
+            <div class="brand-text">Runningly Hub</div>
           </div>
           <div class="server-status-pill" id="serverStatusPill">
             <span class="status-dot"></span>
@@ -541,6 +541,8 @@ async function sendChatMessage(text: string): Promise<void> {
   // Show typing / processing indicator
   state.isExecuting = true;
   updateSendButtonState();
+  renderChatStream();
+  scrollToBottom();
 
   try {
     const res = await fetch(`${NTQA_API_BASE}/chat`, {
@@ -604,6 +606,7 @@ async function sendChatMessage(text: string): Promise<void> {
   } finally {
     state.isExecuting = false;
     updateSendButtonState();
+    renderChatStream();
   }
 }
 
@@ -668,17 +671,27 @@ async function executeTasks(tasks: any[], pause: boolean = false): Promise<void>
             }
           }
         }
-        if (parsedMeta && (parsedMeta.download_file || parsedMeta.download_url)) {
-          const dlFile = parsedMeta.download_file || parsedMeta.file_name || 'download';
-          const dlUrl = parsedMeta.download_url || `/download?file=${encodeURIComponent(dlFile)}`;
-          // Direct in-browser download trigger (same tab, no new window)
-          const dlLink = document.createElement('a');
-          dlLink.href = dlUrl;
-          dlLink.download = dlFile;
-          dlLink.style.display = 'none';
-          document.body.appendChild(dlLink);
-          dlLink.click();
-          document.body.removeChild(dlLink);
+        if (parsedMeta) {
+          if (parsedMeta.download_file || parsedMeta.download_url) {
+            const dlFile = parsedMeta.download_file || parsedMeta.file_name || 'download';
+            const dlUrl = parsedMeta.download_url || `/download?file=${encodeURIComponent(dlFile)}`;
+            // Direct in-browser download trigger (same tab, no new window)
+            const dlLink = document.createElement('a');
+            dlLink.href = dlUrl;
+            dlLink.download = dlFile;
+            dlLink.style.display = 'none';
+            document.body.appendChild(dlLink);
+            dlLink.click();
+            document.body.removeChild(dlLink);
+          }
+          if (parsedMeta.alertScript) {
+            try {
+              // eslint-disable-next-line no-eval
+              new Function(parsedMeta.alertScript)();
+            } catch (e) {
+              console.error("Failed to execute alertScript:", e);
+            }
+          }
         }
       }
     }
@@ -699,6 +712,7 @@ async function executeTasks(tasks: any[], pause: boolean = false): Promise<void>
   } finally {
     state.isExecuting = false;
     updateSendButtonState();
+    renderChatStream();
   }
 }
 
@@ -1265,6 +1279,24 @@ function renderChatStream(): void {
     `;
   }).join('');
 
+  if (state.isExecuting) {
+    chatStreamContainer.innerHTML += `
+      <div class="msg-row">
+        <div class="msg-avatar bot-avatar" style="animation: pulseRecord 1.5s infinite;">⚡</div>
+        <div class="msg-body">
+          <div class="msg-sender-name">NTQA Assistant</div>
+          <div class="bot-bubble">
+            <div class="typing-dots">
+              <div class="typing-dot"></div>
+              <div class="typing-dot"></div>
+              <div class="typing-dot"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
   attachWorkflowCardListeners();
 }
 
@@ -1610,13 +1642,10 @@ btnRefreshTasks.addEventListener('click', async () => {
 btnOpenImportModal.addEventListener('click', openImportModal);
 btnTopImportModal.addEventListener('click', openImportModal);
 btnCloseImportModal.addEventListener('click', closeImportModal);
-btnCancelImportModal.addEventListener('click', closeImportModal);
 btnGenerateTaskAI.addEventListener('click', handleGenerateTaskFromModal);
 btnSaveTaskToLibrary.addEventListener('click', handleSaveTaskFromModal);
+btnCancelImportModal.addEventListener('click', closeImportModal);
 
-importTaskModal.addEventListener('click', (e) => {
-  if (e.target === importTaskModal) closeImportModal();
-});
 
 // Clear All History button
 btnClearHistory.addEventListener('click', async () => {

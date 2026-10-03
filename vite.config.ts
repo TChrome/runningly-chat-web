@@ -107,6 +107,18 @@ function runniglyAuthPlugin() {
                 next();
             });
 
+            // 1.5. URL Rewrites for NTQA Hub
+            server.middlewares.use((req: any, _res, next) => {
+                if (req.url) {
+                    const parts = req.url.split('?');
+                    const pathname = parts[0].replace(/\/$/, '');
+                    if (pathname === '/ntqa' || pathname === '/hub') {
+                        req.url = '/ntqa.html' + (parts.length > 1 ? '?' + parts[1] : '');
+                    }
+                }
+                next();
+            });
+
             // 2. Session + Passport middleware
             const sessionMiddleware = session({
                 secret: SESSION_SECRET,
