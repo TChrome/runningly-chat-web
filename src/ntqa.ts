@@ -209,7 +209,7 @@ appEl.innerHTML = `
           <div class="hero-icon">🤖</div>
           <h1 class="hero-title">Intelligent Task Automation</h1>
           <p class="hero-subtitle">
-            Describe what you need in plain English. NTQA will identify the task, prompt for missing parameters, and execute automated commands safely.
+            Describe what you need in plain English. Runningly Assistant will identify the task, prompt for missing parameters, and execute automated commands safely.
           </p>
         </div>
 
@@ -261,7 +261,7 @@ appEl.innerHTML = `
             <textarea
               class="prompt-textarea"
               id="promptInput"
-              placeholder="Ask NTQA to execute a task or enter automation instructions..."
+              placeholder="Ask Runningly Assistant to execute a task or enter automation instructions..."
               rows="1"
             ></textarea>
             <div class="prompt-footer">
@@ -271,7 +271,7 @@ appEl.innerHTML = `
                     <circle cx="12" cy="12" r="10"></circle>
                     <path d="m9 12 2 2 4-4"></path>
                   </svg>
-                  <span>NTQA + Gemini Engine</span>
+                  <span>Runningly + Gemini Engine</span>
                 </div>
               </div>
               <div class="prompt-actions-right">
@@ -1017,14 +1017,17 @@ function renderTaskCards(tasks: any[], msgIndex: number): string {
         draggable="true"
         data-msg-idx="${msgIndex}"
         data-task-idx="${tIdx}"
+        id="workflowCard_${msgIndex}_${tIdx}"
       >
-        <div class="workflow-card-top">
+        <div class="workflow-card-top" data-action="toggle-single-task" title="Click to collapse / expand task parameters">
           <div class="workflow-title-box">
-            <span class="drag-grip" title="Drag to reorder step">⠿</span>
+            <span class="task-toggle-arrow">▼</span>
+            <span class="drag-grip" title="Drag to reorder step" onclick="event.stopPropagation()">⠿</span>
             <span class="step-badge">Step ${tIdx + 1}</span>
             <span class="workflow-task-title">⚙️ ${escapeHtml(taskName)}</span>
+            <span class="task-param-badge">${entries.length} ${entries.length === 1 ? 'param' : 'params'}</span>
           </div>
-          <div class="workflow-controls">
+          <div class="workflow-controls" onclick="event.stopPropagation()">
             <button
               class="btn-card-ctrl"
               data-action="move-up"
@@ -1051,8 +1054,10 @@ function renderTaskCards(tasks: any[], msgIndex: number): string {
           </div>
         </div>
 
-        <div class="workflow-params-list">
-          ${paramPills || '<div style="color: var(--text-muted); font-size: 12px; padding: 4px;">No parameters required</div>'}
+        <div class="workflow-card-body">
+          <div class="workflow-params-list">
+            ${paramPills || '<div style="color: var(--text-muted); font-size: 12px; padding: 4px;">No parameters required</div>'}
+          </div>
         </div>
       </div>
     `;
@@ -1074,32 +1079,38 @@ function renderTaskCards(tasks: any[], msgIndex: number): string {
   }).join('');
 
   return `
-    <div class="workflow-container">
-      <div class="workflow-header-row">
-        <span>Workflow Sequence (${tasks.length} Steps) • Drag to Reorder</span>
+    <div class="workflow-container collapsed" id="workflowContainer_${msgIndex}">
+      <div class="workflow-header-row" data-action="toggle-workflow-container" data-msg-idx="${msgIndex}" title="Click to expand / collapse workflow sequence">
+        <div class="workflow-header-left">
+          <span class="workflow-toggle-arrow">▼</span>
+          <span class="workflow-title">⚙️ Workflow Sequence (${tasks.length} Steps)</span>
+        </div>
+        <span class="batch-status-pill ready">${tasks.length} Steps Ready</span>
       </div>
 
-      <div class="workflow-cards-list" id="workflowList_${msgIndex}">
-        ${taskCards}
-      </div>
-
-      <div class="workflow-actions-footer">
-        <div class="add-step-picker-box">
-          <button class="btn-add-step-pill" id="btnToggleAddStep_${msgIndex}">
-            <span>+ Add Step to Workflow</span>
-          </button>
-          <div class="step-picker-popover" id="stepPickerPopover_${msgIndex}">
-            <div style="font-size: 11px; font-weight: 700; color: var(--text-muted); padding: 4px 6px; text-transform: uppercase;">Select Task to Insert</div>
-            ${taskOptionsHtml}
-          </div>
+      <div class="workflow-collapsible-body" id="workflowBody_${msgIndex}">
+        <div class="workflow-cards-list" id="workflowList_${msgIndex}">
+          ${taskCards}
         </div>
 
-        <button class="btn-execute-now" id="btnRunNow_${msgIndex}">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-            <polygon points="5 3 19 12 5 21 5 3"></polygon>
-          </svg>
-          <span>Run Tasks Now</span>
-        </button>
+        <div class="workflow-actions-footer">
+          <div class="add-step-picker-box">
+            <button class="btn-add-step-pill" id="btnToggleAddStep_${msgIndex}">
+              <span>+ Add Step to Workflow</span>
+            </button>
+            <div class="step-picker-popover" id="stepPickerPopover_${msgIndex}">
+              <div style="font-size: 11px; font-weight: 700; color: var(--text-muted); padding: 4px 6px; text-transform: uppercase;">Select Task to Insert</div>
+              ${taskOptionsHtml}
+            </div>
+          </div>
+
+          <button class="btn-execute-now" id="btnRunNow_${msgIndex}">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            </svg>
+            <span>Run Tasks Now</span>
+          </button>
+        </div>
       </div>
     </div>
   `;
@@ -1132,7 +1143,10 @@ function renderChatStream(): void {
     if (msg.msgType === 'task_execution' && msg.meta?.results) {
       // ─── Collapsible Machine Execution Section ───────────────────────
       const results: TaskRunResult[] = msg.meta.results;
-      const executionCardsHtml = results.map(res => {
+      const allSuccess = results.every(res => !res.status || res.status === 'success' || (!res.error && !!res.output));
+      const successCount = results.filter(res => !res.status || res.status === 'success' || (!res.error && !!res.output)).length;
+
+      const executionCardsHtml = results.map((res, rIdx) => {
         const hasError = res.status ? res.status === 'error' : (!!res.error && !res.output);
         const statusClass = hasError ? 'error' : 'success';
         const statusText = hasError ? 'Failed' : 'Executed Successfully';
@@ -1163,71 +1177,86 @@ function renderChatStream(): void {
         }
 
         return `
-          <div class="machine-execution-card">
-            <div class="execution-summary-header" onclick="this.parentElement.classList.toggle('open')">
+          <div class="machine-execution-card" id="execCard_${index}_${rIdx}">
+            <div class="execution-summary-header" data-action="toggle-exec-card" title="Click to collapse / expand task output">
               <div class="header-left">
-                <span class="accordion-arrow">▶</span>
-                <span class="task-run-name">${escapeHtml(res.task)}</span>
+                <span class="accordion-arrow">▼</span>
+                <span class="task-run-name">⚙️ ${escapeHtml(res.task)}</span>
               </div>
               <span class="status-pill-exec ${statusClass}">${statusText}</span>
             </div>
 
-            ${res.summary ? `
-              <div class="execution-ai-summary">
-                <div class="ai-summary-label">Summary & Insights</div>
-                <div>${escapeHtml(res.summary)}</div>
-              </div>
-            ` : ''}
-
-            ${downloadInfo ? `
-              <div style="margin: 8px 12px; padding: 8px 12px; background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.25); border-radius: 6px; display: flex; align-items: center; justify-content: space-between;">
-                <span style="font-size: 13px; font-weight: 500; color: var(--text-primary);">📥 Ready: <strong>${escapeHtml(downloadInfo.filename)}</strong></span>
-                <a href="${escapeHtml(downloadInfo.url)}" download="${escapeHtml(downloadInfo.filename)}" style="padding: 4px 10px; background: var(--accent); color: #fff; border-radius: 5px; text-decoration: none; font-size: 12px; font-weight: 600; cursor: pointer;">Download</a>
-              </div>
-            ` : ''}
-
-            <!-- Collapsible Raw Logs Drawer (Greyed out font) -->
-            <div class="execution-details-drawer">
-              ${res.command ? `
-                <div class="cli-command-block">
-                  <div class="cli-label">Executed Command</div>
-                  <pre class="cli-code">${escapeHtml(res.command)}</pre>
+            <div class="execution-card-body">
+              ${res.summary ? `
+                <div class="execution-ai-summary">
+                  <div class="ai-summary-label">Summary & Insights</div>
+                  <div>${escapeHtml(res.summary)}</div>
                 </div>
               ` : ''}
 
-              ${res.output ? `
-                <div class="raw-output-block">
-                  <div class="raw-output-header">
-                    <span class="cli-label">Raw Output (stdout)</span>
-                    <button class="btn-copy-code" onclick="navigator.clipboard.writeText(decodeURIComponent('${encodeURIComponent(res.output)}'))">Copy</button>
+              ${downloadInfo ? `
+                <div style="margin: 8px 12px; padding: 8px 12px; background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.25); border-radius: 6px; display: flex; align-items: center; justify-content: space-between;">
+                  <span style="font-size: 13px; font-weight: 500; color: var(--text-primary);">📥 Ready: <strong>${escapeHtml(downloadInfo.filename)}</strong></span>
+                  <a href="${escapeHtml(downloadInfo.url)}" download="${escapeHtml(downloadInfo.filename)}" style="padding: 4px 10px; background: var(--accent); color: #fff; border-radius: 5px; text-decoration: none; font-size: 12px; font-weight: 600; cursor: pointer;">Download</a>
+                </div>
+              ` : ''}
+
+              <!-- Raw Logs & Output Block -->
+              <div class="execution-details-drawer">
+                ${res.command ? `
+                  <div class="cli-command-block">
+                    <div class="cli-label">Executed Command</div>
+                    <pre class="cli-code">${escapeHtml(res.command)}</pre>
                   </div>
-                  <pre class="raw-output-code">${escapeHtml(res.output)}</pre>
-                </div>
-              ` : ''}
+                ` : ''}
 
-              ${res.error ? `
-                <div class="raw-output-block">
-                  <div class="raw-output-header">
-                    <span class="cli-label" style="color: var(--accent-red);">Errors (stderr)</span>
+                ${res.output ? `
+                  <div class="raw-output-block">
+                    <div class="raw-output-header">
+                      <span class="cli-label">Raw Output (stdout)</span>
+                      <button class="btn-copy-code" onclick="event.stopPropagation(); navigator.clipboard.writeText(decodeURIComponent('${encodeURIComponent(res.output)}'))">Copy</button>
+                    </div>
+                    <pre class="raw-output-code">${escapeHtml(res.output)}</pre>
                   </div>
-                  <pre class="raw-output-code" style="color: hsl(0, 75%, 70%);">${escapeHtml(res.error)}</pre>
-                </div>
-              ` : ''}
+                ` : ''}
+
+                ${res.error ? `
+                  <div class="raw-output-block">
+                    <div class="raw-output-header">
+                      <span class="cli-label" style="color: var(--accent-red);">Errors (stderr)</span>
+                    </div>
+                    <pre class="raw-output-code" style="color: hsl(0, 75%, 70%);">${escapeHtml(res.error)}</pre>
+                  </div>
+                ` : ''}
+              </div>
             </div>
           </div>
         `;
       }).join('');
 
       innerContentHtml = `
-        <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 4px;">
-          ${escapeHtml(msg.content)}
+        <div style="color: var(--text-primary); font-size: 14.5px; font-weight: 500; margin-bottom: 6px;">
+          All workflow tasks have finished execution. Ready to review outputs (click below to expand logs or inspect results).
         </div>
-        ${executionCardsHtml}
+        <div class="execution-batch-container collapsed" id="execBatch_${index}">
+          <div class="execution-batch-header" data-action="toggle-exec-batch" title="Click to expand / collapse execution outputs">
+            <div class="batch-header-left">
+              <span class="batch-accordion-arrow">▼</span>
+              <span class="batch-title">⚡ ${escapeHtml(msg.content)}</span>
+            </div>
+            <span class="batch-status-pill ${allSuccess ? 'success' : 'error'}">
+              ${successCount}/${results.length} Succeeded
+            </span>
+          </div>
+          <div class="execution-batch-body">
+            ${executionCardsHtml}
+          </div>
+        </div>
       `;
     } else if (msg.meta?.tasks && Array.isArray(msg.meta.tasks) && msg.meta.tasks.length > 0) {
       // ─── Task Ready for Execution ─────────────────────────────────
       innerContentHtml = `
-        <div style="color: var(--text-primary); font-size: 14.5px;">
+        <div style="color: var(--text-primary); font-size: 14.5px; font-weight: 500; margin-bottom: 6px;">
           ${escapeHtml(msg.content)}
         </div>
         ${renderTaskCards(msg.meta.tasks, index)}
@@ -1253,8 +1282,8 @@ function renderChatStream(): void {
         msg.meta.tasks = inlineTasks;
         state.currentPendingTasks = inlineTasks;
         innerContentHtml = `
-          <div style="color: var(--text-primary); font-size: 14.5px; font-weight: 500;">
-            All required questions are answered. Ready to execute.
+          <div style="color: var(--text-primary); font-size: 14.5px; font-weight: 500; margin-bottom: 6px;">tyoe
+            Workflow generated successfully (${inlineTasks.length} ${inlineTasks.length === 1 ? 'task' : 'tasks'}). Ready to execute.
           </div>
           ${renderTaskCards(inlineTasks, index)}
         `;
@@ -1270,7 +1299,7 @@ function renderChatStream(): void {
       <div class="msg-row">
         <div class="msg-avatar bot-avatar">⚡</div>
         <div class="msg-body">
-          <div class="msg-sender-name">NTQA Assistant</div>
+          <div class="msg-sender-name">Runningly Assistant</div>
           <div class="bot-bubble">
             ${innerContentHtml}
           </div>
@@ -1284,7 +1313,7 @@ function renderChatStream(): void {
       <div class="msg-row">
         <div class="msg-avatar bot-avatar" style="animation: pulseRecord 1.5s infinite;">⚡</div>
         <div class="msg-body">
-          <div class="msg-sender-name">NTQA Assistant</div>
+          <div class="msg-sender-name">Runningly Assistant</div>
           <div class="bot-bubble">
             <div class="typing-dots">
               <div class="typing-dot"></div>
@@ -1489,6 +1518,50 @@ function attachWorkflowCardListeners(): void {
       card.classList.remove('dragging');
       document.querySelectorAll('.workflow-card').forEach(c => c.classList.remove('drop-above', 'drop-below', 'dragging'));
       draggedCard = null;
+    });
+  });
+
+  // 8. Toggle Entire Workflow Sequence Collapse
+  document.querySelectorAll('[data-action="toggle-workflow-container"]').forEach(header => {
+    header.addEventListener('click', () => {
+      const container = header.closest('.workflow-container');
+      if (container) {
+        container.classList.toggle('collapsed');
+      }
+    });
+  });
+
+  // 9. Toggle Individual Workflow Task Card Collapse
+  document.querySelectorAll('[data-action="toggle-single-task"]').forEach(topBar => {
+    topBar.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement;
+      if (target.closest('.drag-grip') || target.closest('.workflow-controls') || target.closest('.param-val-pill')) {
+        return;
+      }
+      const card = topBar.closest('.workflow-card');
+      if (card) {
+        card.classList.toggle('collapsed');
+      }
+    });
+  });
+
+  // 10. Toggle Execution Batch Container Collapse
+  document.querySelectorAll('[data-action="toggle-exec-batch"]').forEach(batchHeader => {
+    batchHeader.addEventListener('click', () => {
+      const batch = batchHeader.closest('.execution-batch-container');
+      if (batch) {
+        batch.classList.toggle('collapsed');
+      }
+    });
+  });
+
+  // 11. Toggle Individual Task Execution Card Collapse
+  document.querySelectorAll('[data-action="toggle-exec-card"]').forEach(cardHeader => {
+    cardHeader.addEventListener('click', () => {
+      const execCard = cardHeader.closest('.machine-execution-card');
+      if (execCard) {
+        execCard.classList.toggle('open');
+      }
     });
   });
 }
