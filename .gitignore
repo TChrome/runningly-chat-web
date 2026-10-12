@@ -28,3 +28,4 @@ logging-service-account.json
 static/downloads/
 .env
 .vercel
+vite.config copy.ts

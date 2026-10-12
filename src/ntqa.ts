@@ -674,7 +674,7 @@ async function executeTasks(tasks: any[], pause: boolean = false): Promise<void>
         if (parsedMeta) {
           if (parsedMeta.download_file || parsedMeta.download_url) {
             const dlFile = parsedMeta.download_file || parsedMeta.file_name || 'download';
-            const dlUrl = parsedMeta.download_url || `/download?file=${encodeURIComponent(dlFile)}`;
+            const dlUrl = parsedMeta.download_url || `${NTQA_API_BASE}/download?file=${encodeURIComponent(dlFile)}`;
             // Direct in-browser download trigger (same tab, no new window)
             const dlLink = document.createElement('a');
             dlLink.href = dlUrl;
@@ -1143,8 +1143,8 @@ function renderChatStream(): void {
     if (msg.msgType === 'task_execution' && msg.meta?.results) {
       // ─── Collapsible Machine Execution Section ───────────────────────
       const results: TaskRunResult[] = msg.meta.results;
-      const allSuccess = results.every(res => !res.status || res.status === 'success' || (!res.error && !!res.output));
-      const successCount = results.filter(res => !res.status || res.status === 'success' || (!res.error && !!res.output)).length;
+      const allSuccess = results.every(res => res.status ? res.status === 'success' : (!res.error && !!res.output));
+      const successCount = results.filter(res => res.status ? res.status === 'success' : (!res.error && !!res.output)).length;
 
       const executionCardsHtml = results.map((res, rIdx) => {
         const hasError = res.status ? res.status === 'error' : (!!res.error && !res.output);
@@ -1157,7 +1157,7 @@ function renderChatStream(): void {
             const p = JSON.parse(res.output);
             if (p.download_file || p.download_url) {
               const fn = p.download_file || p.file_name || 'download';
-              downloadInfo = { url: p.download_url || `/download?file=${encodeURIComponent(fn)}`, filename: fn };
+              downloadInfo = { url: p.download_url || `${NTQA_API_BASE}/download?file=${encodeURIComponent(fn)}`, filename: fn };
             }
           } catch {
             for (const l of res.output.split('\n').reverse()) {
@@ -1167,7 +1167,7 @@ function renderChatStream(): void {
                   const p = JSON.parse(str);
                   if (p.download_file || p.download_url) {
                     const fn = p.download_file || p.file_name || 'download';
-                    downloadInfo = { url: p.download_url || `/download?file=${encodeURIComponent(fn)}`, filename: fn };
+                    downloadInfo = { url: p.download_url || `${NTQA_API_BASE}/download?file=${encodeURIComponent(fn)}`, filename: fn };
                     break;
                   }
                 } catch {}
@@ -1235,9 +1235,14 @@ function renderChatStream(): void {
       }).join('');
 
       innerContentHtml = `
-        <div style="color: var(--text-primary); font-size: 14.5px; font-weight: 500; margin-bottom: 6px;">
-          All workflow tasks have finished execution. Ready to review outputs (click below to expand logs or inspect results).
-        </div>
+        ${allSuccess 
+          ? `<div style="color: var(--text-primary); font-size: 14.5px; font-weight: 500; margin-bottom: 6px;">
+               All workflow tasks have finished execution. Ready to review outputs (click below to expand logs or inspect results).
+             </div>`
+          : `<div style="color: var(--accent-red); font-size: 14.5px; font-weight: 600; margin-bottom: 6px; padding: 8px 12px; background: rgba(239, 68, 68, 0.1); border-left: 4px solid var(--accent-red); border-radius: 4px;">
+               ⚠️ Execution stopped because a task failed. Please review the logs below and try again.
+             </div>`
+        }
         <div class="execution-batch-container collapsed" id="execBatch_${index}">
           <div class="execution-batch-header" data-action="toggle-exec-batch" title="Click to expand / collapse execution outputs">
             <div class="batch-header-left">
@@ -1245,7 +1250,7 @@ function renderChatStream(): void {
               <span class="batch-title">⚡ ${escapeHtml(msg.content)}</span>
             </div>
             <span class="batch-status-pill ${allSuccess ? 'success' : 'error'}">
-              ${successCount}/${results.length} Succeeded
+              ${allSuccess ? `${successCount}/${results.length} Succeeded` : `${results.length - successCount}/${results.length} Failed`}
             </span>
           </div>
           <div class="execution-batch-body">
