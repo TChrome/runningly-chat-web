@@ -523,6 +523,13 @@ async function sendChatMessage(text: string): Promise<void> {
     sessionTitleDisplay.textContent = trimmed.length > 25 ? trimmed.substring(0, 25) + '...' : trimmed;
   }
 
+  // Mark any previous workflow messages as superseded
+  state.messages.forEach(m => {
+    if (m.meta?.tasks) {
+      m.meta.isSuperseded = true;
+    }
+  });
+
   // Add user message to UI state immediately
   const userMsg: ChatMessage = {
     id: generateUUID(),
@@ -569,7 +576,7 @@ async function sendChatMessage(text: string): Promise<void> {
         role: 'assistant',
         content: data.message,
         msgType: 'complete',
-        meta: { tasks: data.tasks }
+        meta: { tasks: data.tasks, isCollapsed: true }
       });
     } else if (data.status === 'ready_to_execute') {
       state.messages.push({
@@ -580,7 +587,7 @@ async function sendChatMessage(text: string): Promise<void> {
         meta: { tasks: data.tasks }
       });
       // Execute tasks immediately
-      await executeTasks(data.tasks, data.pause);
+      await executeTasks(data.tasks, data.pause, state.messages.length - 1);
     } else {
       state.messages.push({
         id: generateUUID(),
@@ -611,27 +618,211 @@ async function sendChatMessage(text: string): Promise<void> {
 }
 
 /**
- * Execute automated tasks via NTQA /execute endpoint.
+ * Render a single task's execution results card (logs, parameters, downloads, LLM summary).
  */
-async function executeTasks(tasks: any[], pause: boolean = false): Promise<void> {
+function renderExecutionCard(res: TaskRunResult, msgIndex: number, rIdx: number): string {
+  const hasError = res.status ? res.status === 'error' : (!!res.error && !res.output);
+  const statusClass = hasError ? 'error' : 'success';
+  const statusText = hasError ? 'Failed' : 'Executed Successfully';
+
+  let downloadInfo: { url: string; filename: string } | null = null;
+  if (res.output) {
+    try {
+      const p = JSON.parse(res.output);
+      if (p.download_file || p.download_url) {
+        const fn = p.download_file || p.file_name || 'download';
+        downloadInfo = { url: p.download_url || `${NTQA_API_BASE}/download?file=${encodeURIComponent(fn)}`, filename: fn };
+      }
+    } catch {
+      for (const l of res.output.split('\n').reverse()) {
+        const str = l.trim();
+        if (str.startsWith('{') && str.endsWith('}')) {
+          try {
+            const p = JSON.parse(str);
+            if (p.download_file || p.download_url) {
+              const fn = p.download_file || p.file_name || 'download';
+              downloadInfo = { url: p.download_url || `${NTQA_API_BASE}/download?file=${encodeURIComponent(fn)}`, filename: fn };
+              break;
+            }
+          } catch {}
+        }
+      }
+    }
+  }
+
+  return `
+    <div class="machine-execution-card" id="execCard_${msgIndex}_${rIdx}">
+      <div class="execution-summary-header" data-action="toggle-exec-card" title="Click to collapse / expand task output">
+        <div class="header-left">
+          <span class="accordion-arrow">▼</span>
+          <span class="task-run-name">⚙️ ${escapeHtml(res.task)}</span>
+        </div>
+        <span class="status-pill-exec ${statusClass}">${statusText}</span>
+      </div>
+
+      <div class="execution-card-body">
+        ${res.summary ? `
+          <div class="execution-ai-summary">
+            <div class="ai-summary-label">Summary & Insights</div>
+            <div>${escapeHtml(res.summary)}</div>
+          </div>
+        ` : ''}
+
+        ${downloadInfo ? `
+          <div style="margin: 8px 12px; padding: 8px 12px; background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.25); border-radius: 6px; display: flex; align-items: center; justify-content: space-between;">
+            <span style="font-size: 13px; font-weight: 500; color: var(--text-primary);">📥 Ready: <strong>${escapeHtml(downloadInfo.filename)}</strong></span>
+            <a href="${escapeHtml(downloadInfo.url)}" download="${escapeHtml(downloadInfo.filename)}" style="padding: 4px 10px; background: var(--accent); color: #fff; border-radius: 5px; text-decoration: none; font-size: 12px; font-weight: 600; cursor: pointer;">Download</a>
+          </div>
+        ` : ''}
+
+        <!-- Raw Logs & Output Block -->
+        <div class="execution-details-drawer">
+          ${res.command ? `
+            <div class="cli-command-block">
+              <div class="cli-label">Executed Command</div>
+              <pre class="cli-code">${escapeHtml(res.command)}</pre>
+            </div>
+          ` : ''}
+
+          ${res.output ? `
+            <div class="raw-output-block">
+              <div class="raw-output-header">
+                <span class="cli-label">Raw Output (stdout)</span>
+                <button class="btn-copy-code" onclick="event.stopPropagation(); navigator.clipboard.writeText(decodeURIComponent('${encodeURIComponent(res.output)}'))">Copy</button>
+              </div>
+              <pre class="raw-output-code">${escapeHtml(res.output)}</pre>
+            </div>
+          ` : ''}
+
+          ${res.error ? `
+            <div class="raw-output-block">
+              <div class="raw-output-header">
+                <span class="cli-label" style="color: var(--accent-red);">Errors (stderr)</span>
+              </div>
+              <pre class="raw-output-code" style="color: hsl(0, 75%, 70%);">${escapeHtml(res.error)}</pre>
+            </div>
+          ` : ''}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Handle side effects from completed task results (auto file download, custom scripts).
+ */
+function handleTaskSideEffects(taskRes: TaskRunResult): void {
+  if (!taskRes || !taskRes.output) return;
+  let parsedMeta: any = null;
+  try {
+    parsedMeta = JSON.parse(taskRes.output);
+  } catch {
+    for (const line of taskRes.output.split('\n').reverse()) {
+      const l = line.trim();
+      if (l.startsWith('{') && l.endsWith('}')) {
+        try { parsedMeta = JSON.parse(l); break; } catch {}
+      }
+    }
+  }
+  if (parsedMeta) {
+    if (parsedMeta.download_file || parsedMeta.download_url) {
+      const dlFile = parsedMeta.download_file || parsedMeta.file_name || 'download';
+      const dlUrl = parsedMeta.download_url || `${NTQA_API_BASE}/download?file=${encodeURIComponent(dlFile)}`;
+      const dlLink = document.createElement('a');
+      dlLink.href = dlUrl;
+      dlLink.download = dlFile;
+      dlLink.style.display = 'none';
+      document.body.appendChild(dlLink);
+      dlLink.click();
+      document.body.removeChild(dlLink);
+    }
+    if (parsedMeta.alertScript) {
+      try {
+        // eslint-disable-next-line no-eval
+        new Function(parsedMeta.alertScript)();
+      } catch (e) {
+        console.error("Failed to execute alertScript:", e);
+      }
+    }
+  }
+}
+
+/**
+ * Smoothly scroll the running card or workflow container into view,
+ * ensuring it stays centered and well above the floating prompt dock.
+ */
+function scrollToRunningCard(card: HTMLElement): void {
+  if (!card) return;
+  requestAnimationFrame(() => {
+    try {
+      card.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+    } catch {
+      if (chatStreamContainer) {
+        const cRect = chatStreamContainer.getBoundingClientRect();
+        const cardRect = card.getBoundingClientRect();
+        const visibleHeight = cRect.height - 200;
+        const offset = (cardRect.top - cRect.top) + chatStreamContainer.scrollTop;
+        const target = offset - (visibleHeight / 2) + (cardRect.height / 2);
+        chatStreamContainer.scrollTo({ top: Math.max(0, target), behavior: 'smooth' });
+      }
+    }
+  });
+}
+
+/**
+ * Execute automated tasks sequentially with real-time SSE streaming.
+ */
+async function executeTasks(tasks: any[], pause: boolean = false, msgIndex?: number): Promise<void> {
   if (!tasks || tasks.length === 0) return;
+
+  let targetMsgIndex = msgIndex;
+  if (targetMsgIndex === undefined || !state.messages[targetMsgIndex]) {
+    targetMsgIndex = state.messages.findIndex(m => m.meta?.tasks === tasks);
+    if (targetMsgIndex === -1) {
+      targetMsgIndex = state.messages.length - 1;
+    }
+  }
+
+  const targetMsg = state.messages[targetMsgIndex];
+  if (!targetMsg) return;
+
+  if (!targetMsg.meta) targetMsg.meta = {};
+  targetMsg.meta.stepResults = targetMsg.meta.stepResults || {};
+  targetMsg.meta.stepStatuses = targetMsg.meta.stepStatuses || {};
+  targetMsg.meta.isCollapsed = false;
 
   state.isExecuting = true;
   updateSendButtonState();
 
-  // Temporary status message
-  const execMsgId = generateUUID();
-  state.messages.push({
-    id: execMsgId,
-    role: 'assistant',
-    content: `⚙️ Executing ${tasks.length} task(s)...`,
-    msgType: 'status'
-  });
-  renderChatStream();
-  scrollToBottom();
+  // Expand container if collapsed in DOM and smoothly reveal
+  const container = document.querySelector(`#workflowContainer_${targetMsgIndex}`) as HTMLElement | null;
+  if (container) {
+    container.classList.remove('collapsed');
+    scrollToRunningCard(container);
+  }
+
+  const runBtn = document.querySelector(`#btnRunNow_${targetMsgIndex}`) as HTMLButtonElement | null;
+  if (runBtn) {
+    runBtn.disabled = true;
+    runBtn.innerHTML = `
+      <span class="step-spinner"></span>
+      <span>Running Tasks...</span>
+    `;
+  }
+
+  const headerRunBtn = document.querySelector(`#btnRunHeader_${targetMsgIndex}`) as HTMLButtonElement | null;
+  if (headerRunBtn) {
+    headerRunBtn.disabled = true;
+    headerRunBtn.innerHTML = `
+      <span class="step-spinner"></span>
+      <span>Running...</span>
+    `;
+  }
+
+  const headerPill = document.querySelector(`#workflowContainer_${targetMsgIndex} .batch-status-pill`);
 
   try {
-    const res = await fetch(`${NTQA_API_BASE}/execute`, {
+    const res = await fetch(`${NTQA_API_BASE}/execute_stream`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -642,66 +833,136 @@ async function executeTasks(tasks: any[], pause: boolean = false): Promise<void>
     });
 
     if (!res.ok) throw new Error(`Execution error HTTP ${res.status}`);
-    const data = await res.json();
+    if (!res.body) throw new Error('No readable stream returned by execute_stream');
 
-    // Replace the status message with rich collapsible machine execution card
-    state.messages = state.messages.filter(m => m.id !== execMsgId);
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
 
-    state.messages.push({
-      id: generateUUID(),
-      role: 'assistant',
-      content: `Execution finished for ${data.results?.length || 0} task(s).`,
-      msgType: 'task_execution',
-      meta: { results: data.results || [] }
-    });
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
 
-    // Check if any completed task yielded a downloadable file and trigger direct in-browser download
-    if (Array.isArray(data.results)) {
-      for (const taskRes of data.results) {
-        let parsedMeta: any = null;
-        if (taskRes.output) {
-          try {
-            parsedMeta = JSON.parse(taskRes.output);
-          } catch {
-            for (const line of taskRes.output.split('\n').reverse()) {
-              const l = line.trim();
-              if (l.startsWith('{') && l.endsWith('}')) {
-                try { parsedMeta = JSON.parse(l); break; } catch {}
-              }
-            }
-          }
-        }
-        if (parsedMeta) {
-          if (parsedMeta.download_file || parsedMeta.download_url) {
-            const dlFile = parsedMeta.download_file || parsedMeta.file_name || 'download';
-            const dlUrl = parsedMeta.download_url || `${NTQA_API_BASE}/download?file=${encodeURIComponent(dlFile)}`;
-            // Direct in-browser download trigger (same tab, no new window)
-            const dlLink = document.createElement('a');
-            dlLink.href = dlUrl;
-            dlLink.download = dlFile;
-            dlLink.style.display = 'none';
-            document.body.appendChild(dlLink);
-            dlLink.click();
-            document.body.removeChild(dlLink);
-          }
-          if (parsedMeta.alertScript) {
+      buffer += decoder.decode(value, { stream: true });
+      const chunks = buffer.split('\n\n');
+      buffer = chunks.pop() || '';
+
+      for (const chunk of chunks) {
+        const trimmed = chunk.trim();
+        if (!trimmed) continue;
+
+        for (const line of trimmed.split('\n')) {
+          if (line.startsWith('data: ')) {
+            const jsonStr = line.slice(6).trim();
             try {
-              // eslint-disable-next-line no-eval
-              new Function(parsedMeta.alertScript)();
-            } catch (e) {
-              console.error("Failed to execute alertScript:", e);
+              const eventData = JSON.parse(jsonStr);
+
+              if (eventData.type === 'task_start') {
+                const tIdx = eventData.task_index;
+                targetMsg.meta!.stepStatuses[tIdx] = 'running';
+
+                if (headerPill) {
+                  headerPill.className = 'batch-status-pill running';
+                  headerPill.innerHTML = `<span class="step-spinner"></span> Step ${tIdx + 1} of ${tasks.length}`;
+                }
+
+                const card = document.querySelector(`#workflowCard_${targetMsgIndex}_${tIdx}`) as HTMLElement | null;
+                if (card) {
+                  card.classList.add('is-running');
+                  const titleBox = card.querySelector('.workflow-title-box');
+                  if (titleBox && !titleBox.querySelector('.status-pill-running')) {
+                    const pill = document.createElement('span');
+                    pill.className = 'status-pill-running';
+                    pill.innerHTML = '<span class="step-spinner"></span> Running...';
+                    titleBox.appendChild(pill);
+                  }
+                  scrollToRunningCard(card);
+                }
+              } else if (eventData.type === 'task_result') {
+                const tIdx = eventData.task_index;
+                const taskRes: TaskRunResult = eventData.result;
+                targetMsg.meta!.stepResults[tIdx] = taskRes;
+                targetMsg.meta!.stepStatuses[tIdx] = taskRes.status || 'success';
+
+                const card = document.querySelector(`#workflowCard_${targetMsgIndex}_${tIdx}`) as HTMLElement | null;
+                if (card) {
+                  card.classList.remove('is-running');
+                  card.classList.add('has-result');
+                  const pill = card.querySelector('.status-pill-running');
+                  if (pill) pill.remove();
+
+                  const titleBox = card.querySelector('.workflow-title-box');
+                  const badge = titleBox?.querySelector('.step-badge');
+
+                  if (taskRes.status === 'error') {
+                    card.classList.add('step-failed');
+                    if (badge) {
+                      badge.className = 'step-badge badge-failed';
+                      badge.textContent = `✕ Step ${tIdx + 1}`;
+                    }
+                    if (titleBox && !titleBox.querySelector('.status-pill-error')) {
+                      const errPill = document.createElement('span');
+                      errPill.className = 'status-pill-error';
+                      errPill.innerHTML = '<span>✕ Failed</span>';
+                      titleBox.appendChild(errPill);
+                    }
+                  } else {
+                    card.classList.add('step-success');
+                    if (badge) {
+                      badge.className = 'step-badge badge-success';
+                      badge.textContent = `✓ Step ${tIdx + 1}`;
+                    }
+                    if (titleBox && !titleBox.querySelector('.status-pill-success')) {
+                      const succPill = document.createElement('span');
+                      succPill.className = 'status-pill-success';
+                      succPill.innerHTML = '<span>✓ Succeeded</span>';
+                      titleBox.appendChild(succPill);
+                    }
+                  }
+                }
+
+                const resultSlot = document.querySelector(`#workflowStepResult_${targetMsgIndex}_${tIdx}`);
+                if (resultSlot) {
+                  resultSlot.innerHTML = renderExecutionCard(taskRes, targetMsgIndex, tIdx);
+                  const toggleBtn = resultSlot.querySelector('[data-action="toggle-exec-card"]');
+                  if (toggleBtn) {
+                    toggleBtn.addEventListener('click', () => {
+                      const execCard = toggleBtn.closest('.machine-execution-card');
+                      if (execCard) execCard.classList.toggle('open');
+                    });
+                  }
+                }
+
+                handleTaskSideEffects(taskRes);
+
+                if (tIdx === tasks.length - 1 && card) {
+                  scrollToRunningCard(card);
+                }
+              } else if (eventData.type === 'complete') {
+                const allSuccess = eventData.status === 'success';
+                const results: TaskRunResult[] = eventData.results || [];
+                const successCount = results.filter(r => r.status === 'success').length;
+                targetMsg.meta!.results = results;
+                targetMsg.meta!.hasRun = true;
+
+                if (headerPill) {
+                  headerPill.className = `batch-status-pill ${allSuccess ? 'success' : 'error'}`;
+                  headerPill.textContent = allSuccess
+                    ? `${tasks.length}/${tasks.length} Succeeded`
+                    : `${successCount}/${tasks.length} Succeeded (Stopped)`;
+                }
+              }
+            } catch (err) {
+              console.error('Error parsing SSE event in client:', err, jsonStr);
             }
           }
         }
       }
     }
 
-    renderChatStream();
-    scrollToBottom();
     await loadHistoryList();
   } catch (err: any) {
     console.error('Task execution failed:', err);
-    state.messages = state.messages.filter(m => m.id !== execMsgId);
     state.messages.push({
       id: generateUUID(),
       role: 'assistant',
@@ -712,7 +973,30 @@ async function executeTasks(tasks: any[], pause: boolean = false): Promise<void>
   } finally {
     state.isExecuting = false;
     updateSendButtonState();
-    renderChatStream();
+    targetMsg.meta!.hasRun = true;
+    if (runBtn) {
+      runBtn.disabled = true;
+      runBtn.className = 'btn-execute-now ran';
+      runBtn.title = 'This workflow has already executed';
+      runBtn.innerHTML = `
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+        <span>Tasks Executed</span>
+      `;
+    }
+    const headerBtn = document.querySelector(`#btnRunHeader_${targetMsgIndex}`) as HTMLButtonElement | null;
+    if (headerBtn) {
+      headerBtn.disabled = true;
+      headerBtn.className = 'btn-execute-header ran';
+      headerBtn.title = 'This workflow has already executed';
+      headerBtn.innerHTML = `
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+        <span>Executed</span>
+      `;
+    }
   }
 }
 
@@ -986,10 +1270,70 @@ function formatParamLabel(rawKey: string): string {
 function renderTaskCards(tasks: any[], msgIndex: number): string {
   if (!tasks || !Array.isArray(tasks) || tasks.length === 0) return '';
 
+  const msg = state.messages[msgIndex];
+  const stepResults: Record<number, TaskRunResult> = msg?.meta?.stepResults || {};
+  const stepStatuses: Record<number, string> = msg?.meta?.stepStatuses || {};
+  const resultsCount = Object.keys(stepResults).length;
+  const isRunning = Object.values(stepStatuses).some(s => s === 'running');
+  const allSucceeded = resultsCount === tasks.length && Object.values(stepResults).every(r => r.status === 'success');
+  const hasErrors = Object.values(stepResults).some(r => r.status === 'error');
+
+  const hasRun = !!msg?.meta?.hasRun || !!msg?.meta?.results || (resultsCount > 0 && resultsCount === tasks.length);
+  const hasNewerPrompt = state.messages.slice(msgIndex + 1).some(m => m.role === 'user' || !!m.meta?.tasks);
+  const isSuperseded = msg?.meta?.isSuperseded === true || hasNewerPrompt;
+  const isRunDisabled = state.isExecuting || hasRun || isSuperseded;
+
+  let headerRunText = 'Run all Tasks';
+  let headerRunClass = 'btn-execute-header';
+  let headerRunTitle = 'Run all tasks now';
+
+  let footerRunText = 'Run all Tasks';
+  let footerRunClass = 'btn-execute-now';
+  let footerRunTitle = 'Run all tasks now';
+
+  if (hasRun) {
+    headerRunText = 'Executed';
+    headerRunClass += ' ran';
+    headerRunTitle = 'This workflow has already executed';
+
+    footerRunText = 'Tasks Executed';
+    footerRunClass += ' ran';
+    footerRunTitle = 'This workflow has already executed';
+  } else if (isSuperseded) {
+    headerRunText = 'Old Workflow';
+    headerRunClass += ' superseded';
+    headerRunTitle = 'Disabled: A newer prompt has been submitted';
+
+    footerRunText = 'Old Workflow';
+    footerRunClass += ' superseded';
+    footerRunTitle = 'Disabled: A newer prompt has been submitted';
+  }
+
+  let batchPillClass = 'ready';
+  let batchPillHtml = `${tasks.length} Steps Ready`;
+
+  if (isRunning) {
+    const runningIdx = Object.keys(stepStatuses).find(k => stepStatuses[Number(k)] === 'running');
+    const runningNum = runningIdx !== undefined ? Number(runningIdx) + 1 : 1;
+    batchPillClass = 'running';
+    batchPillHtml = `<span class="step-spinner"></span> Step ${runningNum} of ${tasks.length}`;
+  } else if (hasErrors) {
+    batchPillClass = 'error';
+    batchPillHtml = `Stopped (${resultsCount}/${tasks.length})`;
+  } else if (allSucceeded) {
+    batchPillClass = 'success';
+    batchPillHtml = `${tasks.length}/${tasks.length} Succeeded`;
+  }
+
   const taskCards = tasks.map((t, tIdx) => {
     const taskName = t.task || 'Task';
     const data = t.data || {};
     const entries = Object.entries(data);
+    const res: TaskRunResult | undefined = stepResults[tIdx] || t.result;
+    const currentStatus = stepStatuses[tIdx] || (res ? (res.status || 'success') : 'ready');
+    const statusClass = currentStatus === 'success' ? 'step-success' : (currentStatus === 'error' ? 'step-failed' : '');
+    const badgeStatusClass = currentStatus === 'success' ? 'badge-success' : (currentStatus === 'error' ? 'badge-failed' : '');
+    const badgeText = currentStatus === 'success' ? `✓ Step ${tIdx + 1}` : (currentStatus === 'error' ? `✕ Step ${tIdx + 1}` : `Step ${tIdx + 1}`);
 
     const paramPills = entries.map(([k, v]) => {
       const cleanKey = formatParamLabel(k);
@@ -1012,52 +1356,72 @@ function renderTaskCards(tasks: any[], msgIndex: number): string {
     }).join('');
 
     return `
-      <div
-        class="workflow-card"
-        draggable="true"
-        data-msg-idx="${msgIndex}"
-        data-task-idx="${tIdx}"
-        id="workflowCard_${msgIndex}_${tIdx}"
-      >
-        <div class="workflow-card-top" data-action="toggle-single-task" title="Click to collapse / expand task parameters">
-          <div class="workflow-title-box">
-            <span class="task-toggle-arrow">▼</span>
-            <span class="drag-grip" title="Drag to reorder step" onclick="event.stopPropagation()">⠿</span>
-            <span class="step-badge">Step ${tIdx + 1}</span>
-            <span class="workflow-task-title">⚙️ ${escapeHtml(taskName)}</span>
-            <span class="task-param-badge">${entries.length} ${entries.length === 1 ? 'param' : 'params'}</span>
+      <div class="workflow-card-group" id="workflowGroup_${msgIndex}_${tIdx}">
+        <div
+          class="workflow-card ${res ? 'has-result' : ''} ${currentStatus === 'running' ? 'is-running' : ''} ${statusClass}"
+          draggable="${!state.isExecuting && !hasRun && !isSuperseded}"
+          data-msg-idx="${msgIndex}"
+          data-task-idx="${tIdx}"
+          id="workflowCard_${msgIndex}_${tIdx}"
+        >
+          <div class="workflow-card-top" data-action="toggle-single-task" title="Click to collapse / expand task parameters">
+            <div class="workflow-title-box">
+              <span class="task-toggle-arrow">▼</span>
+              <span class="drag-grip" title="Drag to reorder step" onclick="event.stopPropagation()">⠿</span>
+              <span class="step-badge ${currentStatus === 'running' ? 'pulse-badge' : ''} ${badgeStatusClass}">${badgeText}</span>
+              <span class="workflow-task-title">⚙️ ${escapeHtml(taskName)}</span>
+              <span class="task-param-badge">${entries.length} ${entries.length === 1 ? 'param' : 'params'}</span>
+              ${currentStatus === 'running' ? `
+                <span class="status-pill-running">
+                  <span class="step-spinner"></span> Running...
+                </span>
+              ` : (currentStatus === 'success' ? `
+                <span class="status-pill-success">
+                  <span>✓ Succeeded</span>
+                </span>
+              ` : (currentStatus === 'error' ? `
+                <span class="status-pill-error">
+                  <span>✕ Failed</span>
+                </span>
+              ` : ''))}
+            </div>
+            <div class="workflow-controls" onclick="event.stopPropagation()">
+              <button
+                class="btn-card-ctrl"
+                data-action="move-up"
+                data-msg-idx="${msgIndex}"
+                data-task-idx="${tIdx}"
+                title="Move step up"
+                ${tIdx === 0 || state.isExecuting || hasRun || isSuperseded ? 'disabled' : ''}
+              >▲</button>
+              <button
+                class="btn-card-ctrl"
+                data-action="move-down"
+                data-msg-idx="${msgIndex}"
+                data-task-idx="${tIdx}"
+                title="Move step down"
+                ${tIdx === tasks.length - 1 || state.isExecuting || hasRun || isSuperseded ? 'disabled' : ''}
+              >▼</button>
+              <button
+                class="btn-card-ctrl btn-delete"
+                data-action="delete-task"
+                data-msg-idx="${msgIndex}"
+                data-task-idx="${tIdx}"
+                title="Remove step"
+                ${state.isExecuting || hasRun || isSuperseded ? 'disabled' : ''}
+              >✕</button>
+            </div>
           </div>
-          <div class="workflow-controls" onclick="event.stopPropagation()">
-            <button
-              class="btn-card-ctrl"
-              data-action="move-up"
-              data-msg-idx="${msgIndex}"
-              data-task-idx="${tIdx}"
-              title="Move step up"
-              ${tIdx === 0 ? 'disabled' : ''}
-            >▲</button>
-            <button
-              class="btn-card-ctrl"
-              data-action="move-down"
-              data-msg-idx="${msgIndex}"
-              data-task-idx="${tIdx}"
-              title="Move step down"
-              ${tIdx === tasks.length - 1 ? 'disabled' : ''}
-            >▼</button>
-            <button
-              class="btn-card-ctrl btn-delete"
-              data-action="delete-task"
-              data-msg-idx="${msgIndex}"
-              data-task-idx="${tIdx}"
-              title="Remove step"
-            >✕</button>
+
+          <div class="workflow-card-body">
+            <div class="workflow-params-list">
+              ${paramPills || '<div style="color: var(--text-muted); font-size: 12px; padding: 4px;">No parameters required</div>'}
+            </div>
           </div>
         </div>
 
-        <div class="workflow-card-body">
-          <div class="workflow-params-list">
-            ${paramPills || '<div style="color: var(--text-muted); font-size: 12px; padding: 4px;">No parameters required</div>'}
-          </div>
+        <div class="workflow-step-result" id="workflowStepResult_${msgIndex}_${tIdx}">
+          ${res ? renderExecutionCard(res, msgIndex, tIdx) : ''}
         </div>
       </div>
     `;
@@ -1078,14 +1442,29 @@ function renderTaskCards(tasks: any[], msgIndex: number): string {
     `;
   }).join('');
 
+  const isCollapsed = msg?.meta?.isCollapsed !== false;
+
   return `
-    <div class="workflow-container collapsed" id="workflowContainer_${msgIndex}">
+    <div class="workflow-container ${isCollapsed ? 'collapsed' : ''}" id="workflowContainer_${msgIndex}">
       <div class="workflow-header-row" data-action="toggle-workflow-container" data-msg-idx="${msgIndex}" title="Click to expand / collapse workflow sequence">
         <div class="workflow-header-left">
           <span class="workflow-toggle-arrow">▼</span>
           <span class="workflow-title">⚙️ Workflow Sequence (${tasks.length} Steps)</span>
         </div>
-        <span class="batch-status-pill ready">${tasks.length} Steps Ready</span>
+        <div class="workflow-header-right">
+          <span class="batch-status-pill ${batchPillClass}">${batchPillHtml}</span>
+          <button
+            class="${headerRunClass}"
+            id="btnRunHeader_${msgIndex}"
+            title="${headerRunTitle}"
+            ${isRunDisabled ? 'disabled' : ''}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="${hasRun ? 'none' : 'currentColor'}" ${hasRun ? 'stroke="currentColor" stroke-width="2.5"' : ''}>
+              ${hasRun ? `<polyline points="20 6 9 17 4 12"></polyline>` : `<polygon points="5 3 19 12 5 21 5 3"></polygon>`}
+            </svg>
+            <span>${headerRunText}</span>
+          </button>
+        </div>
       </div>
 
       <div class="workflow-collapsible-body" id="workflowBody_${msgIndex}">
@@ -1095,7 +1474,7 @@ function renderTaskCards(tasks: any[], msgIndex: number): string {
 
         <div class="workflow-actions-footer">
           <div class="add-step-picker-box">
-            <button class="btn-add-step-pill" id="btnToggleAddStep_${msgIndex}">
+            <button class="btn-add-step-pill" id="btnToggleAddStep_${msgIndex}" ${isRunDisabled ? 'disabled' : ''}>
               <span>+ Add Step to Workflow</span>
             </button>
             <div class="step-picker-popover" id="stepPickerPopover_${msgIndex}">
@@ -1104,12 +1483,29 @@ function renderTaskCards(tasks: any[], msgIndex: number): string {
             </div>
           </div>
 
-          <button class="btn-execute-now" id="btnRunNow_${msgIndex}">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-              <polygon points="5 3 19 12 5 21 5 3"></polygon>
-            </svg>
-            <span>Run Tasks Now</span>
-          </button>
+          <div class="workflow-footer-right">
+            <button
+              class="btn-collapse-workflow"
+              data-action="collapse-workflow-footer"
+              data-msg-idx="${msgIndex}"
+              title="Collapse workflow sequence"
+            >
+              <span class="collapse-icon">▲</span>
+              <span>Collapse Workflow</span>
+            </button>
+
+            <button
+              class="${footerRunClass}"
+              id="btnRunNow_${msgIndex}"
+              title="${footerRunTitle}"
+              ${isRunDisabled ? 'disabled' : ''}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="${hasRun ? 'none' : 'currentColor'}" ${hasRun ? 'stroke="currentColor" stroke-width="2.5"' : ''}>
+                ${hasRun ? `<polyline points="20 6 9 17 4 12"></polyline>` : `<polygon points="5 3 19 12 5 21 5 3"></polygon>`}
+              </svg>
+              <span>${footerRunText}</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -1141,123 +1537,51 @@ function renderChatStream(): void {
     let innerContentHtml = '';
 
     if (msg.msgType === 'task_execution' && msg.meta?.results) {
-      // ─── Collapsible Machine Execution Section ───────────────────────
-      const results: TaskRunResult[] = msg.meta.results;
-      const allSuccess = results.every(res => res.status ? res.status === 'success' : (!res.error && !!res.output));
-      const successCount = results.filter(res => res.status ? res.status === 'success' : (!res.error && !!res.output)).length;
-
-      const executionCardsHtml = results.map((res, rIdx) => {
-        const hasError = res.status ? res.status === 'error' : (!!res.error && !res.output);
-        const statusClass = hasError ? 'error' : 'success';
-        const statusText = hasError ? 'Failed' : 'Executed Successfully';
-
-        let downloadInfo: { url: string; filename: string } | null = null;
-        if (res.output) {
-          try {
-            const p = JSON.parse(res.output);
-            if (p.download_file || p.download_url) {
-              const fn = p.download_file || p.file_name || 'download';
-              downloadInfo = { url: p.download_url || `${NTQA_API_BASE}/download?file=${encodeURIComponent(fn)}`, filename: fn };
-            }
-          } catch {
-            for (const l of res.output.split('\n').reverse()) {
-              const str = l.trim();
-              if (str.startsWith('{') && str.endsWith('}')) {
-                try {
-                  const p = JSON.parse(str);
-                  if (p.download_file || p.download_url) {
-                    const fn = p.download_file || p.file_name || 'download';
-                    downloadInfo = { url: p.download_url || `${NTQA_API_BASE}/download?file=${encodeURIComponent(fn)}`, filename: fn };
-                    break;
-                  }
-                } catch {}
-              }
-            }
-          }
+      if (msg.meta?.tasks && Array.isArray(msg.meta.tasks) && msg.meta.tasks.length > 0) {
+        if (!msg.meta.stepResults) {
+          msg.meta.stepResults = {};
+          msg.meta.results.forEach((r, idx) => {
+            msg.meta!.stepResults[idx] = r;
+          });
         }
+        innerContentHtml = `
+          <div style="color: var(--text-primary); font-size: 14.5px; font-weight: 500; margin-bottom: 6px;">
+            ${escapeHtml(msg.content)}
+          </div>
+          ${renderTaskCards(msg.meta.tasks, index)}
+        `;
+      } else {
+        const results: TaskRunResult[] = msg.meta.results;
+        const allSuccess = results.every(res => res.status ? res.status === 'success' : (!res.error && !!res.output));
+        const successCount = results.filter(res => res.status ? res.status === 'success' : (!res.error && !!res.output)).length;
 
-        return `
-          <div class="machine-execution-card" id="execCard_${index}_${rIdx}">
-            <div class="execution-summary-header" data-action="toggle-exec-card" title="Click to collapse / expand task output">
-              <div class="header-left">
-                <span class="accordion-arrow">▼</span>
-                <span class="task-run-name">⚙️ ${escapeHtml(res.task)}</span>
+        const executionCardsHtml = results.map((res, rIdx) => renderExecutionCard(res, index, rIdx)).join('');
+
+        innerContentHtml = `
+          ${allSuccess 
+            ? `<div style="color: var(--text-primary); font-size: 14.5px; font-weight: 500; margin-bottom: 6px;">
+                 All workflow tasks have finished execution. Ready to review outputs (click below to expand logs or inspect results).
+               </div>`
+            : `<div style="color: var(--accent-red); font-size: 14.5px; font-weight: 600; margin-bottom: 6px; padding: 8px 12px; background: rgba(239, 68, 68, 0.1); border-left: 4px solid var(--accent-red); border-radius: 4px;">
+                 ⚠️ Execution stopped because a task failed. Please review the logs below and try again.
+               </div>`
+          }
+          <div class="execution-batch-container collapsed" id="execBatch_${index}">
+            <div class="execution-batch-header" data-action="toggle-exec-batch" title="Click to expand / collapse execution outputs">
+              <div class="batch-header-left">
+                <span class="batch-accordion-arrow">▼</span>
+                <span class="batch-title">⚡ ${escapeHtml(msg.content)}</span>
               </div>
-              <span class="status-pill-exec ${statusClass}">${statusText}</span>
+              <span class="batch-status-pill ${allSuccess ? 'success' : 'error'}">
+                ${allSuccess ? `${successCount}/${results.length} Succeeded` : `${results.length - successCount}/${results.length} Failed`}
+              </span>
             </div>
-
-            <div class="execution-card-body">
-              ${res.summary ? `
-                <div class="execution-ai-summary">
-                  <div class="ai-summary-label">Summary & Insights</div>
-                  <div>${escapeHtml(res.summary)}</div>
-                </div>
-              ` : ''}
-
-              ${downloadInfo ? `
-                <div style="margin: 8px 12px; padding: 8px 12px; background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.25); border-radius: 6px; display: flex; align-items: center; justify-content: space-between;">
-                  <span style="font-size: 13px; font-weight: 500; color: var(--text-primary);">📥 Ready: <strong>${escapeHtml(downloadInfo.filename)}</strong></span>
-                  <a href="${escapeHtml(downloadInfo.url)}" download="${escapeHtml(downloadInfo.filename)}" style="padding: 4px 10px; background: var(--accent); color: #fff; border-radius: 5px; text-decoration: none; font-size: 12px; font-weight: 600; cursor: pointer;">Download</a>
-                </div>
-              ` : ''}
-
-              <!-- Raw Logs & Output Block -->
-              <div class="execution-details-drawer">
-                ${res.command ? `
-                  <div class="cli-command-block">
-                    <div class="cli-label">Executed Command</div>
-                    <pre class="cli-code">${escapeHtml(res.command)}</pre>
-                  </div>
-                ` : ''}
-
-                ${res.output ? `
-                  <div class="raw-output-block">
-                    <div class="raw-output-header">
-                      <span class="cli-label">Raw Output (stdout)</span>
-                      <button class="btn-copy-code" onclick="event.stopPropagation(); navigator.clipboard.writeText(decodeURIComponent('${encodeURIComponent(res.output)}'))">Copy</button>
-                    </div>
-                    <pre class="raw-output-code">${escapeHtml(res.output)}</pre>
-                  </div>
-                ` : ''}
-
-                ${res.error ? `
-                  <div class="raw-output-block">
-                    <div class="raw-output-header">
-                      <span class="cli-label" style="color: var(--accent-red);">Errors (stderr)</span>
-                    </div>
-                    <pre class="raw-output-code" style="color: hsl(0, 75%, 70%);">${escapeHtml(res.error)}</pre>
-                  </div>
-                ` : ''}
-              </div>
+            <div class="execution-batch-body">
+              ${executionCardsHtml}
             </div>
           </div>
         `;
-      }).join('');
-
-      innerContentHtml = `
-        ${allSuccess 
-          ? `<div style="color: var(--text-primary); font-size: 14.5px; font-weight: 500; margin-bottom: 6px;">
-               All workflow tasks have finished execution. Ready to review outputs (click below to expand logs or inspect results).
-             </div>`
-          : `<div style="color: var(--accent-red); font-size: 14.5px; font-weight: 600; margin-bottom: 6px; padding: 8px 12px; background: rgba(239, 68, 68, 0.1); border-left: 4px solid var(--accent-red); border-radius: 4px;">
-               ⚠️ Execution stopped because a task failed. Please review the logs below and try again.
-             </div>`
-        }
-        <div class="execution-batch-container collapsed" id="execBatch_${index}">
-          <div class="execution-batch-header" data-action="toggle-exec-batch" title="Click to expand / collapse execution outputs">
-            <div class="batch-header-left">
-              <span class="batch-accordion-arrow">▼</span>
-              <span class="batch-title">⚡ ${escapeHtml(msg.content)}</span>
-            </div>
-            <span class="batch-status-pill ${allSuccess ? 'success' : 'error'}">
-              ${allSuccess ? `${successCount}/${results.length} Succeeded` : `${results.length - successCount}/${results.length} Failed`}
-            </span>
-          </div>
-          <div class="execution-batch-body">
-            ${executionCardsHtml}
-          </div>
-        </div>
-      `;
+      }
     } else if (msg.meta?.tasks && Array.isArray(msg.meta.tasks) && msg.meta.tasks.length > 0) {
       // ─── Task Ready for Execution ─────────────────────────────────
       innerContentHtml = `
@@ -1287,7 +1611,7 @@ function renderChatStream(): void {
         msg.meta.tasks = inlineTasks;
         state.currentPendingTasks = inlineTasks;
         innerContentHtml = `
-          <div style="color: var(--text-primary); font-size: 14.5px; font-weight: 500; margin-bottom: 6px;">tyoe
+          <div style="color: var(--text-primary); font-size: 14.5px; font-weight: 500; margin-bottom: 6px;">
             Workflow generated successfully (${inlineTasks.length} ${inlineTasks.length === 1 ? 'task' : 'tasks'}). Ready to execute.
           </div>
           ${renderTaskCards(inlineTasks, index)}
@@ -1345,7 +1669,15 @@ function attachWorkflowCardListeners(): void {
       const runBtn = document.querySelector(`#btnRunNow_${msgIdx}`);
       if (runBtn) {
         runBtn.addEventListener('click', () => {
-          executeTasks(tasks, false);
+          executeTasks(tasks, false, msgIdx);
+        });
+      }
+
+      const headerRunBtn = document.querySelector(`#btnRunHeader_${msgIdx}`);
+      if (headerRunBtn) {
+        headerRunBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          executeTasks(tasks, false, msgIdx);
         });
       }
 
@@ -1528,10 +1860,17 @@ function attachWorkflowCardListeners(): void {
 
   // 8. Toggle Entire Workflow Sequence Collapse
   document.querySelectorAll('[data-action="toggle-workflow-container"]').forEach(header => {
-    header.addEventListener('click', () => {
+    header.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement;
+      if (target.closest('.btn-execute-header')) return;
+      const msgIdx = parseInt(header.getAttribute('data-msg-idx') || '-1', 10);
       const container = header.closest('.workflow-container');
       if (container) {
+        const willBeCollapsed = !container.classList.contains('collapsed');
         container.classList.toggle('collapsed');
+        if (msgIdx >= 0 && state.messages[msgIdx]?.meta) {
+          state.messages[msgIdx].meta!.isCollapsed = willBeCollapsed;
+        }
       }
     });
   });
@@ -1566,6 +1905,22 @@ function attachWorkflowCardListeners(): void {
       const execCard = cardHeader.closest('.machine-execution-card');
       if (execCard) {
         execCard.classList.toggle('open');
+      }
+    });
+  });
+
+  // 12. Collapse Workflow Sequence from Footer Button
+  document.querySelectorAll('[data-action="collapse-workflow-footer"]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const msgIdx = parseInt(btn.getAttribute('data-msg-idx') || '-1', 10);
+      const container = btn.closest('.workflow-container');
+      if (container) {
+        container.classList.add('collapsed');
+        if (msgIdx >= 0 && state.messages[msgIdx]?.meta) {
+          state.messages[msgIdx].meta!.isCollapsed = true;
+        }
+        container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }
     });
   });

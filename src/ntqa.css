@@ -661,7 +661,9 @@ body {
 .chat-stream-container {
   flex: 1;
   overflow-y: auto;
-  padding: 24px 20px 140px 20px;
+  padding: 24px 20px 220px 20px;
+  scroll-padding-bottom: 220px;
+  scroll-padding-top: 80px;
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -815,6 +817,13 @@ body {
   box-shadow: 0 6px 18px hsla(145, 75%, 50%, 0.45);
 }
 
+.btn-execute-now:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
 /* ────────────────── Unified Collapsible Headers (Workflow & Execution Rows) ────────────────── */
 .execution-batch-container,
 .workflow-container {
@@ -902,6 +911,38 @@ body {
   background: hsla(0, 80%, 60%, 0.15);
   color: var(--accent-red);
   border: 1px solid hsla(0, 80%, 60%, 0.3);
+}
+
+.workflow-header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn-execute-header {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(135deg, var(--accent), hsl(250, 75%, 60%));
+  color: #fff;
+  border: 1px solid hsla(265, 85%, 65%, 0.4);
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+  box-shadow: 0 2px 8px var(--accent-glow);
+}
+
+.btn-execute-header:hover:not(:disabled) {
+  filter: brightness(1.15);
+  transform: translateY(-1px);
+}
+
+.btn-execute-header:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .execution-batch-body,
@@ -1601,7 +1642,13 @@ body {
 .workflow-cards-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
+}
+
+.workflow-card-group {
+  display: flex;
+  flex-direction: column;
+  position: relative;
 }
 
 .workflow-card {
@@ -1612,6 +1659,65 @@ body {
   transition: transform 0.2s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.2s ease, border-color 0.2s ease;
   position: relative;
   user-select: none;
+}
+
+.workflow-card.has-result {
+  border-bottom-left-radius: 0 !important;
+  border-bottom-right-radius: 0 !important;
+  border-bottom: 1px dashed var(--border-subtle) !important;
+  margin-bottom: 0 !important;
+}
+
+.workflow-card.is-running {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 20px rgba(124, 58, 237, 0.45) !important;
+  background: hsla(255, 30%, 15%, 0.9) !important;
+  position: relative;
+  z-index: 2;
+}
+
+.workflow-step-result {
+  margin-top: 0;
+  padding: 0;
+}
+
+.workflow-step-result .machine-execution-card {
+  border-top-left-radius: 0 !important;
+  border-top-right-radius: 0 !important;
+  border-top: none !important;
+  margin-top: 0 !important;
+  box-shadow: none;
+}
+
+.status-pill-running {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: hsla(217, 91%, 60%, 0.15);
+  color: hsl(217, 91%, 70%);
+  border: 1px solid hsla(217, 91%, 60%, 0.3);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+.step-spinner {
+  width: 10px;
+  height: 10px;
+  border: 2px solid hsla(217, 91%, 70%, 0.3);
+  border-top-color: hsl(217, 91%, 70%);
+  border-radius: 50%;
+  animation: stepSpin 0.7s linear infinite;
+  display: inline-block;
+}
+
+@keyframes stepSpin {
+  to { transform: rotate(360deg); }
+}
+
+.step-badge.pulse-badge {
+  animation: pulseRecord 1.5s infinite;
 }
 
 .workflow-card:hover {
@@ -1911,6 +2017,141 @@ body {
 @keyframes wave {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-4px); }
+}
+
+/* ────────────────── Workflow Footer Actions & Collapse Button ────────────────── */
+.workflow-footer-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-collapse-workflow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: hsla(220, 20%, 14%, 0.7);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+}
+
+.btn-collapse-workflow:hover {
+  background: hsla(220, 20%, 20%, 0.95);
+  color: var(--text-primary);
+  border-color: var(--border-card);
+  transform: translateY(-1px);
+}
+
+.btn-collapse-workflow .collapse-icon {
+  font-size: 9px;
+  color: var(--accent);
+  transition: transform 0.2s ease;
+}
+
+/* ────────────────── Disabled, Ran & Superseded Button States ────────────────── */
+.btn-execute-header:disabled,
+.btn-execute-header.ran,
+.btn-execute-header.superseded {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
+  filter: grayscale(0.4);
+}
+
+.btn-execute-now:disabled,
+.btn-execute-now.ran,
+.btn-execute-now.superseded {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
+  filter: grayscale(0.4);
+}
+
+.btn-execute-header.ran,
+.btn-execute-now.ran {
+  background: hsla(145, 60%, 18%, 0.5) !important;
+  color: hsl(145, 70%, 70%) !important;
+  border-color: hsla(145, 60%, 35%, 0.35) !important;
+}
+
+.btn-execute-header.superseded,
+.btn-execute-now.superseded {
+  background: hsla(220, 15%, 18%, 0.6) !important;
+  color: var(--text-muted) !important;
+  border-color: var(--border-subtle) !important;
+}
+
+/* ────────────────── Dimmed Task Cards on Success / Failure ────────────────── */
+/* Successfully run step card: dimmed with an elegant subtle emerald / green tint */
+.workflow-card.step-success {
+  background: hsla(150, 25%, 9%, 0.82) !important;
+  border-color: hsla(145, 55%, 35%, 0.45) !important;
+  opacity: 0.88;
+  transition: opacity 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+}
+
+.workflow-card.step-success:hover {
+  opacity: 1;
+  border-color: hsla(145, 65%, 45%, 0.65) !important;
+  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.15);
+}
+
+.step-badge.badge-success {
+  background: hsla(145, 75%, 45%, 0.18) !important;
+  color: hsl(145, 75%, 60%) !important;
+  border: 1px solid hsla(145, 75%, 45%, 0.35) !important;
+}
+
+.status-pill-success {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: hsla(145, 75%, 45%, 0.15);
+  color: hsl(145, 75%, 60%);
+  border: 1px solid hsla(145, 75%, 45%, 0.3);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+/* Failed step card: dimmed with a distinct, subtle ruby / red tint */
+.workflow-card.step-failed {
+  background: hsla(0, 30%, 10%, 0.85) !important;
+  border-color: hsla(0, 70%, 45%, 0.5) !important;
+  opacity: 0.92;
+  transition: opacity 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+}
+
+.workflow-card.step-failed:hover {
+  opacity: 1;
+  border-color: hsla(0, 80%, 55%, 0.7) !important;
+  box-shadow: 0 4px 16px rgba(239, 68, 68, 0.2);
+}
+
+.step-badge.badge-failed {
+  background: hsla(0, 80%, 60%, 0.18) !important;
+  color: hsl(0, 80%, 70%) !important;
+  border: 1px solid hsla(0, 80%, 60%, 0.35) !important;
+}
+
+.status-pill-error {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: hsla(0, 80%, 60%, 0.15);
+  color: hsl(0, 80%, 70%);
+  border: 1px solid hsla(0, 80%, 60%, 0.3);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 12px;
 }
 
 
