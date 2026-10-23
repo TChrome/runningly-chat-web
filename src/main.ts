@@ -11,7 +11,20 @@ const appEl = document.querySelector('#app') as HTMLElement;
 
 // Injection of full layout
 appEl.innerHTML = `
-  <div class="app-layout">
+  <div class="app-layout" data-active-tab="chat">
+    <!-- Mobile Navigation Tab Bar (Visible on mobile only) -->
+    <nav class="mobile-nav-bar" id="mobileNavBar">
+      <button class="mobile-nav-tab active" data-tab="chat">
+        <span>💬 Chat</span>
+      </button>
+      <button class="mobile-nav-tab" data-tab="canvas">
+        <span>⚡ Canvas</span>
+      </button>
+      <button class="mobile-nav-tab" data-tab="history">
+        <span>📁 History</span>
+      </button>
+    </nav>
+
     <!-- Left Side Panel (30% approx) -->
     <aside class="left-panel">
       <div class="panel-header">
@@ -344,6 +357,18 @@ async function saveVideoToHistory(videoUrl: string, title: string, type: string 
 // Resizable Right Panel Logic
 const resizer = document.querySelector('#rightResizer') as HTMLElement;
 const appLayout = document.querySelector('.app-layout') as HTMLElement;
+
+// Mobile Tab Navigation Logic
+const mobileNavTabs = document.querySelectorAll('.mobile-nav-tab');
+mobileNavTabs.forEach(tab => {
+  tab.addEventListener('click', () => {
+    const targetTab = tab.getAttribute('data-tab') || 'chat';
+    if (appLayout) {
+      appLayout.setAttribute('data-active-tab', targetTab);
+    }
+    mobileNavTabs.forEach(t => t.classList.toggle('active', t === tab));
+  });
+});
 
 let isResizing = false;
 

@@ -104,6 +104,12 @@ appEl.innerHTML = `
             <span class="status-dot"></span>
             <span id="serverStatusText">Connecting...</span>
           </div>
+          <button class="mobile-sidebar-close-btn" id="btnMobileSidebarClose" aria-label="Close sidebar" title="Close menu">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
         </div>
 
         <button class="btn-new-chat" id="btnNewChat">
@@ -174,6 +180,9 @@ appEl.innerHTML = `
       </div>
     </aside>
 
+    <!-- Mobile Sidebar Backdrop Overlay -->
+    <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
     <!-- Resizer Divider -->
     <div class="ntqa-resizer" id="sidebarResizer"></div>
 
@@ -181,6 +190,13 @@ appEl.innerHTML = `
     <main class="ntqa-main-panel" id="mainPanel">
       <!-- Top Bar -->
       <header class="ntqa-topbar">
+        <button class="mobile-sidebar-toggle" id="btnMobileSidebarToggle" aria-label="Toggle navigation menu" title="Open task menu">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="3" y1="12" x2="21" y2="12"></line>
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <line x1="3" y1="18" x2="21" y2="18"></line>
+          </svg>
+        </button>
         <div class="topbar-title-group">
           <div class="session-badge" id="currentSessionBadge">
             <span>Session:</span>
@@ -192,13 +208,13 @@ appEl.innerHTML = `
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M12 5v14M5 12h14"></path>
             </svg>
-            <span>Import cURL</span>
+            <span class="btn-text">Import cURL</span>
           </button>
           <button class="topbar-btn" id="btnRefreshTasks" title="Refresh task library from server">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
             </svg>
-            <span>Sync Tasks</span>
+            <span class="btn-text">Sync Tasks</span>
           </button>
         </div>
       </header>
@@ -326,7 +342,7 @@ appEl.innerHTML = `
           ></textarea>
         </div>
 
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+        <div class="modal-grid-2col" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
           <div class="form-group">
             <label class="form-label">Task Pack / Category</label>
             <input type="text" class="form-input" id="modalCategoryInput" placeholder="e.g. Okta, AWS, GitHub, System, Database" value="Custom" />
@@ -380,6 +396,33 @@ const btnOpenImportModal = document.querySelector('#btnOpenImportModal') as HTML
 const btnTopImportModal = document.querySelector('#btnTopImportModal') as HTMLButtonElement;
 const sidebarResizer = document.querySelector('#sidebarResizer') as HTMLElement;
 const ntqaLayout = document.querySelector('#ntqaLayout') as HTMLElement;
+const ntqaSidebar = document.querySelector('#ntqaSidebar') as HTMLElement;
+const btnMobileSidebarToggle = document.querySelector('#btnMobileSidebarToggle') as HTMLButtonElement | null;
+const btnMobileSidebarClose = document.querySelector('#btnMobileSidebarClose') as HTMLButtonElement | null;
+const sidebarBackdrop = document.querySelector('#sidebarBackdrop') as HTMLElement | null;
+
+function closeMobileSidebar(): void {
+  if (ntqaSidebar) ntqaSidebar.classList.remove('mobile-open');
+  if (sidebarBackdrop) sidebarBackdrop.classList.remove('active');
+}
+
+function openMobileSidebar(): void {
+  if (ntqaSidebar) ntqaSidebar.classList.add('mobile-open');
+  if (sidebarBackdrop) sidebarBackdrop.classList.add('active');
+}
+
+function toggleMobileSidebar(): void {
+  if (ntqaSidebar && ntqaSidebar.classList.contains('mobile-open')) {
+    closeMobileSidebar();
+  } else {
+    openMobileSidebar();
+  }
+}
+
+btnMobileSidebarToggle?.addEventListener('click', toggleMobileSidebar);
+btnMobileSidebarClose?.addEventListener('click', closeMobileSidebar);
+sidebarBackdrop?.addEventListener('click', closeMobileSidebar);
+
 const sessionTitleDisplay = document.querySelector('#sessionTitleDisplay') as HTMLElement;
 const btnRefreshTasks = document.querySelector('#btnRefreshTasks') as HTMLButtonElement;
 const heroContainer = document.querySelector('#heroContainer') as HTMLElement;
@@ -447,6 +490,7 @@ async function loadHistoryList(): Promise<void> {
  * Load a full conversation by its ID from SQLite and display its messages.
  */
 async function openConversation(convoId: string): Promise<void> {
+  closeMobileSidebar();
   try {
     const res = await fetch(`${NTQA_API_BASE}/history/${convoId}`);
     if (!res.ok) throw new Error(`Status ${res.status}`);
@@ -618,6 +662,21 @@ async function sendChatMessage(text: string): Promise<void> {
 }
 
 /**
+ * Safely resolve download URLs to the absolute FastAPI server endpoint.
+ */
+function resolveDownloadUrl(rawUrl: string | undefined, filename: string): string {
+  const cleanFilename = encodeURIComponent(filename || 'download');
+  if (!rawUrl) {
+    return `${NTQA_API_BASE}/download?file=${cleanFilename}`;
+  }
+  if (rawUrl.startsWith('http://') || rawUrl.startsWith('https://')) {
+    return rawUrl;
+  }
+  const cleanPath = rawUrl.startsWith('/') ? rawUrl : `/${rawUrl}`;
+  return `${NTQA_API_BASE}${cleanPath}`;
+}
+
+/**
  * Render a single task's execution results card (logs, parameters, downloads, LLM summary).
  */
 function renderExecutionCard(res: TaskRunResult, msgIndex: number, rIdx: number): string {
@@ -631,7 +690,7 @@ function renderExecutionCard(res: TaskRunResult, msgIndex: number, rIdx: number)
       const p = JSON.parse(res.output);
       if (p.download_file || p.download_url) {
         const fn = p.download_file || p.file_name || 'download';
-        downloadInfo = { url: p.download_url || `${NTQA_API_BASE}/download?file=${encodeURIComponent(fn)}`, filename: fn };
+        downloadInfo = { url: resolveDownloadUrl(p.download_url, fn), filename: fn };
       }
     } catch {
       for (const l of res.output.split('\n').reverse()) {
@@ -641,7 +700,7 @@ function renderExecutionCard(res: TaskRunResult, msgIndex: number, rIdx: number)
             const p = JSON.parse(str);
             if (p.download_file || p.download_url) {
               const fn = p.download_file || p.file_name || 'download';
-              downloadInfo = { url: p.download_url || `${NTQA_API_BASE}/download?file=${encodeURIComponent(fn)}`, filename: fn };
+              downloadInfo = { url: resolveDownloadUrl(p.download_url, fn), filename: fn };
               break;
             }
           } catch {}
@@ -671,7 +730,7 @@ function renderExecutionCard(res: TaskRunResult, msgIndex: number, rIdx: number)
         ${downloadInfo ? `
           <div style="margin: 8px 12px; padding: 8px 12px; background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.25); border-radius: 6px; display: flex; align-items: center; justify-content: space-between;">
             <span style="font-size: 13px; font-weight: 500; color: var(--text-primary);">📥 Ready: <strong>${escapeHtml(downloadInfo.filename)}</strong></span>
-            <a href="${escapeHtml(downloadInfo.url)}" download="${escapeHtml(downloadInfo.filename)}" style="padding: 4px 10px; background: var(--accent); color: #fff; border-radius: 5px; text-decoration: none; font-size: 12px; font-weight: 600; cursor: pointer;">Download</a>
+            <a href="${escapeHtml(downloadInfo.url)}" download="${escapeHtml(downloadInfo.filename)}" target="_blank" style="padding: 4px 10px; background: var(--accent); color: #fff; border-radius: 5px; text-decoration: none; font-size: 12px; font-weight: 600; cursor: pointer;">Download</a>
           </div>
         ` : ''}
 
@@ -727,14 +786,38 @@ function handleTaskSideEffects(taskRes: TaskRunResult): void {
   if (parsedMeta) {
     if (parsedMeta.download_file || parsedMeta.download_url) {
       const dlFile = parsedMeta.download_file || parsedMeta.file_name || 'download';
-      const dlUrl = parsedMeta.download_url || `${NTQA_API_BASE}/download?file=${encodeURIComponent(dlFile)}`;
-      const dlLink = document.createElement('a');
-      dlLink.href = dlUrl;
-      dlLink.download = dlFile;
-      dlLink.style.display = 'none';
-      document.body.appendChild(dlLink);
-      dlLink.click();
-      document.body.removeChild(dlLink);
+      const dlUrl = resolveDownloadUrl(parsedMeta.download_url, dlFile);
+
+      // Fetch blob to guarantee filename preservation and prevent downloading SPA index.html
+      fetch(dlUrl)
+        .then(async res => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const cType = res.headers.get('content-type') || '';
+          if (cType.includes('text/html') && !dlFile.endsWith('.html') && !dlFile.endsWith('.htm')) {
+            throw new Error('Received HTML response instead of file');
+          }
+          const blob = await res.blob();
+          const blobUrl = URL.createObjectURL(blob);
+          const dlLink = document.createElement('a');
+          dlLink.href = blobUrl;
+          dlLink.download = dlFile;
+          dlLink.style.display = 'none';
+          document.body.appendChild(dlLink);
+          dlLink.click();
+          document.body.removeChild(dlLink);
+          setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
+        })
+        .catch(err => {
+          console.warn('Blob download fallback to direct anchor:', err);
+          const dlLink = document.createElement('a');
+          dlLink.href = dlUrl;
+          dlLink.download = dlFile;
+          dlLink.target = '_blank';
+          dlLink.style.display = 'none';
+          document.body.appendChild(dlLink);
+          dlLink.click();
+          document.body.removeChild(dlLink);
+        });
     }
     if (parsedMeta.alertScript) {
       try {
@@ -1093,6 +1176,7 @@ function renderTasksList(): void {
       promptInput.value = `I want to run "${taskName}". Please ask me for any required details.`;
       promptInput.focus();
       adjustTextareaHeight(promptInput);
+      closeMobileSidebar();
     });
   });
 }
@@ -1948,6 +2032,7 @@ function setHeroMode(hero: boolean): void {
  * Start a brand new conversation session.
  */
 function startNewConversation(): void {
+  closeMobileSidebar();
   state.sessionId = generateUUID();
   state.messages = [];
   sessionTitleDisplay.textContent = 'New Session';

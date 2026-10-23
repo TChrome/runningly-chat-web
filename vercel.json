@@ -57,6 +57,14 @@
             "destination": "/ntqa.html"
         },
         {
+            "source": "/download",
+            "destination": "https://runningly-api.t-chrome.com/download"
+        },
+        {
+            "source": "/download_file",
+            "destination": "https://runningly-api.t-chrome.com/download_file"
+        },
+        {
             "source": "/((?!api/).*)",
             "destination": "/index.html"
         }
