@@ -728,6 +728,11 @@ body {
   max-width: 82%;
 }
 
+/* Bot messages always fill the full allowed width for consistent box sizing */
+.msg-row:not(.user-row) .msg-body {
+  width: 82%;
+}
+
 .msg-sender-name {
   font-size: 12px;
   font-weight: 600;
@@ -2388,6 +2393,10 @@ body {
 
   .msg-body {
     max-width: calc(100% - 38px) !important;
+  }
+
+  .msg-row:not(.user-row) .msg-body {
+    width: calc(100% - 38px) !important;
   }
 
   .user-bubble {
