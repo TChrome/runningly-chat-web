@@ -1017,10 +1017,82 @@ async function sendMessage(): Promise<void> {
 
 // Bind enter keys and buttons
 sendBtnEl.addEventListener('click', sendMessage);
+
+// Modern Speech-to-Text Recognition with Live Feedback & Server Fallback
+let isListening = false;
+let speechRecognizer: any = null;
+let baseChatInputText = '';
+
+if (typeof window !== 'undefined' && ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
+  const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+  speechRecognizer = new SpeechRecognition();
+  speechRecognizer.continuous = true;
+  speechRecognizer.interimResults = true;
+  speechRecognizer.lang = 'en-US';
+
+  speechRecognizer.onstart = () => {
+    isListening = true;
+    micBtnEl.classList.add('recording');
+    micBtnEl.title = 'Listening... Click to stop';
+  };
+
+  speechRecognizer.onresult = (event: any) => {
+    let finalTranscript = '';
+    let interimTranscript = '';
+
+    for (let i = 0; i < event.results.length; i++) {
+      const transcript = event.results[i][0].transcript;
+      if (event.results[i].isFinal) {
+        finalTranscript += transcript + ' ';
+      } else {
+        interimTranscript += transcript;
+      }
+    }
+
+    const currentText = (finalTranscript + interimTranscript).trim();
+    chatInputEl.value = baseChatInputText ? `${baseChatInputText} ${currentText}` : currentText;
+
+    // Auto-adjust height to match content
+    chatInputEl.style.height = 'auto';
+    chatInputEl.style.height = chatInputEl.scrollHeight + 'px';
+  };
+
+  speechRecognizer.onend = () => {
+    isListening = false;
+    micBtnEl.classList.remove('recording');
+    micBtnEl.title = 'Speak to chatbot';
+  };
+
+  speechRecognizer.onerror = (event: any) => {
+    console.warn('Speech recognition status:', event.error);
+    isListening = false;
+    micBtnEl.classList.remove('recording');
+    micBtnEl.title = 'Speak to chatbot';
+  };
+}
+
 micBtnEl.addEventListener('click', speak);
 
 async function speak(): Promise<void> {
+  // Use browser-native speech recognition if available for instant, zero-latency dictation
+  if (speechRecognizer) {
+    if (isListening) {
+      speechRecognizer.stop();
+      return;
+    }
+    baseChatInputText = chatInputEl.value.trim();
+    try {
+      speechRecognizer.start();
+      return;
+    } catch (e) {
+      console.warn('Could not start browser speech recognition, trying backend:', e);
+    }
+  }
+
+  // Fallback to server-side speech endpoint
   try {
+    micBtnEl.classList.add('recording');
+    micBtnEl.title = 'Recording on server...';
     const res = await fetch(`${systemUrl}/speak`, {
       method: 'GET',
       headers: {
@@ -1030,12 +1102,17 @@ async function speak(): Promise<void> {
     });
     if (!res.ok) throw new Error('Network response was not ok.');
     const data = await res.json();
-    chatInputEl.value = data.said;
-    // Auto-adjust height to match content
-    chatInputEl.style.height = 'auto';
-    chatInputEl.style.height = chatInputEl.scrollHeight + 'px';
+    if (data.said) {
+      const current = chatInputEl.value.trim();
+      chatInputEl.value = current ? `${current} ${data.said}` : data.said;
+      chatInputEl.style.height = 'auto';
+      chatInputEl.style.height = chatInputEl.scrollHeight + 'px';
+    }
   } catch (error) {
     console.error('Mic/Speak Error:', error);
+  } finally {
+    micBtnEl.classList.remove('recording');
+    micBtnEl.title = 'Speak to chatbot';
   }
 }
 

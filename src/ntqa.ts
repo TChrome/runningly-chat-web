@@ -2235,39 +2235,59 @@ window.addEventListener('mouseup', () => {
 if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
   const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
   const recognition = new SpeechRecognition();
-  recognition.continuous = false;
-  recognition.interimResults = false;
+  recognition.continuous = true;
+  recognition.interimResults = true;
   recognition.lang = 'en-US';
 
   let isRecording = false;
+  let basePromptText = '';
 
   btnMic.addEventListener('click', () => {
     if (isRecording) {
       recognition.stop();
       return;
     }
-    recognition.start();
+    basePromptText = promptInput.value.trim();
+    try {
+      recognition.start();
+    } catch (e) {
+      console.warn('Speech recognition start failed:', e);
+    }
   });
 
   recognition.onstart = () => {
     isRecording = true;
     btnMic.classList.add('recording');
+    btnMic.title = 'Listening... Click to stop';
   };
 
   recognition.onresult = (event: any) => {
-    const transcript = event.results[0][0].transcript;
-    promptInput.value = (promptInput.value ? promptInput.value + ' ' : '') + transcript;
+    let finalTranscript = '';
+    let interimTranscript = '';
+    for (let i = 0; i < event.results.length; i++) {
+      const transcript = event.results[i][0].transcript;
+      if (event.results[i].isFinal) {
+        finalTranscript += transcript + ' ';
+      } else {
+        interimTranscript += transcript;
+      }
+    }
+    const fullText = (finalTranscript + interimTranscript).trim();
+    promptInput.value = basePromptText ? `${basePromptText} ${fullText}` : fullText;
     adjustTextareaHeight(promptInput);
   };
 
   recognition.onend = () => {
     isRecording = false;
     btnMic.classList.remove('recording');
+    btnMic.title = 'Voice input';
   };
 
-  recognition.onerror = () => {
+  recognition.onerror = (event: any) => {
+    console.warn('Speech recognition status:', event.error);
     isRecording = false;
     btnMic.classList.remove('recording');
+    btnMic.title = 'Voice input';
   };
 } else {
   btnMic.style.display = 'none';
