@@ -618,7 +618,7 @@ async function sendChatMessage(text: string): Promise<void> {
       state.messages.push({
         id: generateUUID(),
         role: 'assistant',
-        content: data.message,
+        content: data.message || '',
         msgType: 'complete',
         meta: { tasks: data.tasks, isCollapsed: true }
       });
@@ -628,17 +628,18 @@ async function sendChatMessage(text: string): Promise<void> {
         role: 'assistant',
         content: data.message,
         msgType: 'ready_to_execute',
-        meta: { tasks: data.tasks }
+        meta: { tasks: data.tasks, isCollapsed: true }
       });
       // Execute tasks immediately
       await executeTasks(data.tasks, data.pause, state.messages.length - 1);
     } else {
+      state.currentPendingTasks = data.tasks || [];
       state.messages.push({
         id: generateUUID(),
         role: 'assistant',
-        content: data.message,
+        content: data.message || '',
         msgType: 'incomplete',
-        meta: { parsed: data.parsed }
+        meta: { tasks: data.tasks, parsed: data.parsed, isCollapsed: true }
       });
     }
 
@@ -857,6 +858,21 @@ function scrollToRunningCard(card: HTMLElement): void {
  */
 async function executeTasks(tasks: any[], pause: boolean = false, msgIndex?: number): Promise<void> {
   if (!tasks || tasks.length === 0) return;
+
+  // Verify that all required questions across all identified tasks are answered
+  const hasMissing = tasks.some(t => {
+    const data = t.data || {};
+    return Object.entries(data).some(([k, v]) => isRequiredQuestion(k) && !isAnswered(v));
+  });
+
+  if (hasMissing) {
+    const firstMissingPill = document.querySelector('.param-val-missing') as HTMLElement | null;
+    if (firstMissingPill) {
+      firstMissingPill.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      firstMissingPill.click();
+    }
+    return;
+  }
 
   let targetMsgIndex = msgIndex;
   if (targetMsgIndex === undefined || !state.messages[targetMsgIndex]) {
@@ -1351,6 +1367,91 @@ function formatParamLabel(rawKey: string): string {
   return cleaned || rawKey;
 }
 
+function isRequiredQuestion(k: string): boolean {
+  return k.trim().endsWith('*') || k.includes('*');
+}
+
+function isAnswered(v: any): boolean {
+  if (v === null || v === undefined) return false;
+  const s = String(v).trim();
+  return s !== '' && s !== 'null' && s !== 'undefined';
+}
+
+function showWorkflowJsonModal(tasks: any[]): void {
+  let modal = document.querySelector('#workflowJsonModal') as HTMLElement | null;
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.id = 'workflowJsonModal';
+    modal.innerHTML = `
+      <div class="modal-container workflow-json-modal-container">
+        <div class="modal-header">
+          <div class="modal-title-row">
+            <span class="modal-icon" style="font-family: var(--font-mono); font-weight: 800; color: var(--accent-cyan);">{ }</span>
+            <span class="modal-title">Workflow Full JSON</span>
+          </div>
+          <button class="modal-close-btn" id="btnCloseWorkflowJsonModal" title="Close">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+        <div class="modal-body" style="padding: 16px; display: flex; flex-direction: column; gap: 10px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 12px; color: var(--text-muted);" id="workflowJsonStepCount"></span>
+            <button class="btn-copy-workflow-json" id="btnCopyWorkflowJson" title="Copy JSON to clipboard">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+              </svg>
+              <span id="copyWorkflowJsonText">Copy JSON</span>
+            </button>
+          </div>
+          <pre class="workflow-json-viewer"><code id="workflowJsonCode"></code></pre>
+        </div>
+        <div class="modal-footer" style="justify-content: flex-end;">
+          <button class="btn-secondary" id="btnDoneWorkflowJson">Done</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+
+    const closeBtn = modal.querySelector('#btnCloseWorkflowJsonModal');
+    const doneBtn = modal.querySelector('#btnDoneWorkflowJson');
+    const copyBtn = modal.querySelector('#btnCopyWorkflowJson');
+
+    const closeModal = () => modal?.classList.remove('active');
+    closeBtn?.addEventListener('click', closeModal);
+    doneBtn?.addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeModal();
+    });
+
+    copyBtn?.addEventListener('click', async () => {
+      const codeEl = modal?.querySelector('#workflowJsonCode');
+      const textSpan = modal?.querySelector('#copyWorkflowJsonText');
+      if (codeEl?.textContent) {
+        await navigator.clipboard.writeText(codeEl.textContent);
+        if (textSpan) textSpan.textContent = '✓ Copied!';
+        setTimeout(() => {
+          if (textSpan) textSpan.textContent = 'Copy JSON';
+        }, 2000);
+      }
+    });
+  }
+
+  const codeEl = modal.querySelector('#workflowJsonCode');
+  const countEl = modal.querySelector('#workflowJsonStepCount');
+  if (codeEl) {
+    codeEl.textContent = JSON.stringify(tasks, null, 2);
+  }
+  if (countEl) {
+    countEl.textContent = `${tasks.length} ${tasks.length === 1 ? 'task' : 'tasks'} in sequence`;
+  }
+  modal.classList.add('active');
+}
+
 function renderTaskCards(tasks: any[], msgIndex: number): string {
   if (!tasks || !Array.isArray(tasks) || tasks.length === 0) return '';
 
@@ -1362,10 +1463,22 @@ function renderTaskCards(tasks: any[], msgIndex: number): string {
   const allSucceeded = resultsCount === tasks.length && Object.values(stepResults).every(r => r.status === 'success');
   const hasErrors = Object.values(stepResults).some(r => r.status === 'error');
 
+  // Count missing required questions across all identified tasks
+  let totalMissingRequired = 0;
+  tasks.forEach(t => {
+    const data = t.data || {};
+    Object.entries(data).forEach(([k, v]) => {
+      if (isRequiredQuestion(k) && !isAnswered(v)) {
+        totalMissingRequired++;
+      }
+    });
+  });
+  const hasMissingRequired = totalMissingRequired > 0;
+
   const hasRun = !!msg?.meta?.hasRun || !!msg?.meta?.results || (resultsCount > 0 && resultsCount === tasks.length);
   const hasNewerPrompt = state.messages.slice(msgIndex + 1).some(m => m.role === 'user' || !!m.meta?.tasks);
   const isSuperseded = msg?.meta?.isSuperseded === true || hasNewerPrompt;
-  const isRunDisabled = state.isExecuting || hasRun || isSuperseded;
+  const isRunDisabled = state.isExecuting || hasRun || isSuperseded || hasMissingRequired;
 
   let headerRunText = 'Run all Tasks';
   let headerRunClass = 'btn-execute-header';
@@ -1391,6 +1504,14 @@ function renderTaskCards(tasks: any[], msgIndex: number): string {
     footerRunText = 'Old Workflow';
     footerRunClass += ' superseded';
     footerRunTitle = 'Disabled: A newer prompt has been submitted';
+  } else if (hasMissingRequired) {
+    headerRunText = 'Missing Details';
+    headerRunClass += ' disabled-missing';
+    headerRunTitle = `Cannot run: Please answer all ${totalMissingRequired} required question(s) marked with * first`;
+
+    footerRunText = 'Provide Answers';
+    footerRunClass += ' disabled-missing';
+    footerRunTitle = `Cannot run: Please answer all ${totalMissingRequired} required question(s) marked with * first`;
   }
 
   let batchPillClass = 'ready';
@@ -1407,6 +1528,9 @@ function renderTaskCards(tasks: any[], msgIndex: number): string {
   } else if (allSucceeded) {
     batchPillClass = 'success';
     batchPillHtml = `${tasks.length}/${tasks.length} Succeeded`;
+  } else if (hasMissingRequired) {
+    batchPillClass = 'missing';
+    batchPillHtml = `⚠️ Incomplete (${totalMissingRequired} required missing)`;
   }
 
   const taskCards = tasks.map((t, tIdx) => {
@@ -1419,25 +1543,97 @@ function renderTaskCards(tasks: any[], msgIndex: number): string {
     const badgeStatusClass = currentStatus === 'success' ? 'badge-success' : (currentStatus === 'error' ? 'badge-failed' : '');
     const badgeText = currentStatus === 'success' ? `✓ Step ${tIdx + 1}` : (currentStatus === 'error' ? `✕ Step ${tIdx + 1}` : `Step ${tIdx + 1}`);
 
-    const paramPills = entries.map(([k, v]) => {
+    const taskMissingReqCount = entries.filter(([k, v]) => isRequiredQuestion(k) && !isAnswered(v)).length;
+
+    // Separate entries into:
+    // (A) Always-visible: All required questions (answered or not) + any optional question that is ALREADY answered
+    const visibleEntries = entries.filter(([k, v]) => isRequiredQuestion(k) || isAnswered(v));
+    // (B) Unanswered optional questions (revealed when clicking the "More optional questions" button)
+    const unansweredOptionalEntries = entries.filter(([k, v]) => !isRequiredQuestion(k) && !isAnswered(v));
+
+    const renderParamRow = ([k, v]: [string, any], _isOptionalUnanswered: boolean) => {
+      const isReq = isRequiredQuestion(k);
+      const answered = isAnswered(v);
       const cleanKey = formatParamLabel(k);
-      return `
-        <div class="param-item-row">
-          <span class="param-label-text">${escapeHtml(cleanKey)}:</span>
-          <span
-            class="param-val-pill"
-            data-action="edit-param"
-            data-msg-idx="${msgIndex}"
-            data-task-idx="${tIdx}"
-            data-param-key="${escapeHtml(k)}"
-            data-param-val="${escapeHtml(String(v))}"
-            title="Click to edit parameter"
-          >
-            ✏️ ${escapeHtml(String(v))}
-          </span>
+      const labelHtml = isReq
+        ? `${escapeHtml(cleanKey)} <span class="required-asterisk" title="Required question">*</span>:`
+        : `${escapeHtml(cleanKey)}:`;
+
+      if (isReq && !answered) {
+        return `
+          <div class="param-item-row required-missing">
+            <span class="param-label-text">${labelHtml}</span>
+            <span
+              class="param-val-pill param-val-missing"
+              data-action="edit-param"
+              data-msg-idx="${msgIndex}"
+              data-task-idx="${tIdx}"
+              data-param-key="${escapeHtml(k)}"
+              data-param-val=""
+              title="Required parameter missing! Click to answer"
+            >
+              ⚠️ Required: Missing (Click to answer)
+            </span>
+          </div>
+        `;
+      } else if (answered) {
+        return `
+          <div class="param-item-row">
+            <span class="param-label-text">${labelHtml}</span>
+            <span
+              class="param-val-pill"
+              data-action="edit-param"
+              data-msg-idx="${msgIndex}"
+              data-task-idx="${tIdx}"
+              data-param-key="${escapeHtml(k)}"
+              data-param-val="${escapeHtml(String(v))}"
+              title="Click to edit parameter"
+            >
+              ✏️ ${escapeHtml(String(v))}
+            </span>
+          </div>
+        `;
+      } else {
+        return `
+          <div class="param-item-row optional-param-row">
+            <span class="param-label-text">${labelHtml}</span>
+            <span
+              class="param-val-pill param-val-optional"
+              data-action="edit-param"
+              data-msg-idx="${msgIndex}"
+              data-task-idx="${tIdx}"
+              data-param-key="${escapeHtml(k)}"
+              data-param-val=""
+              title="Optional parameter. Click to specify"
+            >
+              ✏️ (Optional - click to specify)
+            </span>
+          </div>
+        `;
+      }
+    };
+
+    const visiblePills = visibleEntries.map(e => renderParamRow(e, false)).join('');
+    const optionalPills = unansweredOptionalEntries.map(e => renderParamRow(e, true)).join('');
+
+    const optionalSectionHtml = unansweredOptionalEntries.length > 0 ? `
+      <div class="optional-questions-section" id="optionalSection_${msgIndex}_${tIdx}">
+        <button
+          type="button"
+          class="btn-toggle-optional"
+          data-action="toggle-optional-questions"
+          data-msg-idx="${msgIndex}"
+          data-task-idx="${tIdx}"
+          title="Click to view or hide optional questions"
+        >
+          <span class="toggle-optional-arrow">▶</span>
+          <span class="toggle-optional-label">Optional / More questions (${unansweredOptionalEntries.length})</span>
+        </button>
+        <div class="optional-questions-container" id="optionalContainer_${msgIndex}_${tIdx}" style="display: none;">
+          ${optionalPills}
         </div>
-      `;
-    }).join('');
+      </div>
+    ` : '';
 
     return `
       <div class="workflow-card-group" id="workflowGroup_${msgIndex}_${tIdx}">
@@ -1455,6 +1651,11 @@ function renderTaskCards(tasks: any[], msgIndex: number): string {
               <span class="step-badge ${currentStatus === 'running' ? 'pulse-badge' : ''} ${badgeStatusClass}">${badgeText}</span>
               <span class="workflow-task-title">⚙️ ${escapeHtml(taskName)}</span>
               <span class="task-param-badge">${entries.length} ${entries.length === 1 ? 'param' : 'params'}</span>
+              ${taskMissingReqCount > 0 ? `
+                <span class="task-missing-badge" title="${taskMissingReqCount} required question(s) missing">
+                  ⚠️ ${taskMissingReqCount} required missing
+                </span>
+              ` : ''}
               ${currentStatus === 'running' ? `
                 <span class="status-pill-running">
                   <span class="step-spinner"></span> Running...
@@ -1499,7 +1700,8 @@ function renderTaskCards(tasks: any[], msgIndex: number): string {
 
           <div class="workflow-card-body">
             <div class="workflow-params-list">
-              ${paramPills || '<div style="color: var(--text-muted); font-size: 12px; padding: 4px;">No parameters required</div>'}
+              ${visiblePills || '<div style="color: var(--text-muted); font-size: 12px; padding: 4px;">No parameters required</div>'}
+              ${optionalSectionHtml}
             </div>
           </div>
         </div>
@@ -1568,6 +1770,19 @@ function renderTaskCards(tasks: any[], msgIndex: number): string {
           </div>
 
           <div class="workflow-footer-right">
+            <button
+              type="button"
+              class="btn-view-workflow-json-footer"
+              data-action="view-workflow-json"
+              data-msg-idx="${msgIndex}"
+              title="View full workflow JSON schema"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="16 18 22 12 16 6"></polyline>
+                <polyline points="8 6 2 12 8 18"></polyline>
+              </svg>
+              <span>{ } JSON</span>
+            </button>
             <button
               class="btn-collapse-workflow"
               data-action="collapse-workflow-footer"
@@ -1854,22 +2069,111 @@ function attachWorkflowCardListeners(): void {
     });
   });
 
-  // 6. Edit Parameter Inline
-  document.querySelectorAll('[data-action="edit-param"]').forEach(pill => {
-    pill.addEventListener('click', () => {
-      const msgIdx = parseInt(pill.getAttribute('data-msg-idx') || '-1', 10);
-      const taskIdx = parseInt(pill.getAttribute('data-task-idx') || '-1', 10);
-      const paramKey = pill.getAttribute('data-param-key') || '';
-      const currentVal = pill.getAttribute('data-param-val') || '';
+  // 6. Edit Parameter Inline — smart floating widget (no native browser prompt)
+  // Outer-scoped so we can always deregister the previous Esc listener when a new pill is clicked
+  let activeEscHandler: ((ev: KeyboardEvent) => void) | null = null;
 
-      if (msgIdx >= 0 && taskIdx >= 0 && paramKey && state.messages[msgIdx]?.meta?.tasks) {
-        const newVal = prompt(`Edit parameter value for "${formatParamLabel(paramKey)}":`, currentVal);
-        if (newVal !== null && newVal !== currentVal) {
-          state.messages[msgIdx].meta!.tasks[taskIdx].data[paramKey] = newVal;
-          state.currentPendingTasks = state.messages[msgIdx].meta!.tasks;
+  document.querySelectorAll('[data-action="edit-param"]').forEach(pill => {
+    pill.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const pillEl = pill as HTMLElement;
+      const msgIdx = parseInt(pillEl.getAttribute('data-msg-idx') || '-1', 10);
+      const taskIdx = parseInt(pillEl.getAttribute('data-task-idx') || '-1', 10);
+      const paramKey = pillEl.getAttribute('data-param-key') || '';
+      const currentVal = pillEl.getAttribute('data-param-val') || '';
+
+      if (msgIdx < 0 || taskIdx < 0 || !paramKey || !state.messages[msgIdx]?.meta?.tasks) return;
+
+      // Remove any already-open widget + its Esc listener
+      document.querySelector('.param-edit-widget')?.remove();
+      if (activeEscHandler) {
+        document.removeEventListener('keydown', activeEscHandler, true);
+        activeEscHandler = null;
+      }
+
+      const isMissing = pillEl.classList.contains('param-val-missing');
+
+      const widget = document.createElement('div');
+      widget.className = 'param-edit-widget' + (isMissing ? ' param-edit-widget--missing' : '');
+      widget.setAttribute('role', 'dialog');
+      widget.innerHTML = `
+        <div class="param-edit-widget-body">
+          <textarea
+            class="param-edit-widget-input"
+            rows="1"
+            placeholder="${isMissing ? 'Enter required value…' : 'Enter value…'}"
+            autocomplete="off"
+            spellcheck="false"
+          >${escapeHtml(currentVal)}</textarea>
+          <div class="param-edit-widget-actions">
+            <span class="param-edit-widget-hint">↵ Enter to save &nbsp;•&nbsp; Esc to cancel</span>
+            <button class="param-edit-widget-save" type="button">Save</button>
+            <button class="param-edit-widget-cancel" type="button">Cancel</button>
+          </div>
+        </div>
+      `;
+
+      // Insert as a sibling row directly after the clicked param-item-row
+      const parentRow = pillEl.closest('.param-item-row') as HTMLElement | null;
+      if (parentRow && parentRow.parentElement) {
+        parentRow.parentElement.insertBefore(widget, parentRow.nextSibling);
+      } else {
+        // Fallback: append to pill's parent
+        pillEl.parentElement?.appendChild(widget);
+      }
+
+      // Animate open on next frame
+      requestAnimationFrame(() => {
+        widget.classList.add('param-edit-widget--visible');
+      });
+
+      const textarea = widget.querySelector('.param-edit-widget-input') as HTMLTextAreaElement;
+      const saveBtn = widget.querySelector('.param-edit-widget-save') as HTMLButtonElement;
+      const cancelBtn = widget.querySelector('.param-edit-widget-cancel') as HTMLButtonElement;
+
+      // Auto-focus and move cursor to end
+      requestAnimationFrame(() => {
+        textarea?.focus();
+        textarea?.setSelectionRange(textarea.value.length, textarea.value.length);
+      });
+
+      const commit = () => {
+        const newVal = textarea.value.trim();
+        widget.remove();
+        if (activeEscHandler) {
+          document.removeEventListener('keydown', activeEscHandler, true);
+          activeEscHandler = null;
+        }
+        if (newVal !== currentVal) {
+          const task = state.messages[msgIdx]?.meta?.tasks?.[taskIdx];
+          if (!task) return;
+          task.data[paramKey] = newVal;
+          state.currentPendingTasks = state.messages[msgIdx].meta!.tasks ?? [];
           renderChatStream();
         }
-      }
+      };
+
+      const dismiss = () => {
+        widget.remove();
+        if (activeEscHandler) {
+          document.removeEventListener('keydown', activeEscHandler, true);
+          activeEscHandler = null;
+        }
+      };
+
+      // Register document-level Esc handler so it fires regardless of focus
+      activeEscHandler = (ev: KeyboardEvent) => {
+        if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); dismiss(); }
+      };
+      document.addEventListener('keydown', activeEscHandler, true);
+
+      saveBtn.addEventListener('click', commit);
+      cancelBtn.addEventListener('click', dismiss);
+
+      textarea.addEventListener('keydown', (ev: KeyboardEvent) => {
+        if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); commit(); }
+        // Esc handled by document-level escHandler above
+      });
     });
   });
 
@@ -1921,7 +2225,7 @@ function attachWorkflowCardListeners(): void {
       const targetTaskIdx = parseInt(card.getAttribute('data-task-idx') || '-1', 10);
 
       if (dragSrcMsgIdx === targetMsgIdx && dragSrcMsgIdx >= 0 && state.messages[dragSrcMsgIdx]?.meta?.tasks) {
-        const tasks = state.messages[dragSrcMsgIdx].meta!.tasks;
+        const tasks = state.messages[dragSrcMsgIdx].meta!.tasks!;
         const [movedItem] = tasks.splice(dragSrcTaskIdx, 1);
 
         const rect = card.getBoundingClientRect();
@@ -2005,6 +2309,38 @@ function attachWorkflowCardListeners(): void {
           state.messages[msgIdx].meta!.isCollapsed = true;
         }
         container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    });
+  });
+
+  // 13. Toggle Unanswered Optional Questions
+  document.querySelectorAll('[data-action="toggle-optional-questions"]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const msgIdx = btn.getAttribute('data-msg-idx');
+      const taskIdx = btn.getAttribute('data-task-idx');
+      const container = document.getElementById(`optionalContainer_${msgIdx}_${taskIdx}`);
+      const arrow = btn.querySelector('.toggle-optional-arrow');
+      const label = btn.querySelector('.toggle-optional-label');
+      if (container) {
+        const isHidden = container.style.display === 'none';
+        container.style.display = isHidden ? 'flex' : 'none';
+        if (arrow) arrow.textContent = isHidden ? '▼' : '▶';
+        if (label) {
+          const count = container.querySelectorAll('.param-item-row').length;
+          label.textContent = isHidden ? `Hide optional questions (${count})` : `Optional / More questions (${count})`;
+        }
+      }
+    });
+  });
+
+  // 14. View Full Workflow JSON Modal
+  document.querySelectorAll('[data-action="view-workflow-json"]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const msgIdx = parseInt(btn.getAttribute('data-msg-idx') || '-1', 10);
+      if (msgIdx >= 0 && state.messages[msgIdx]?.meta?.tasks) {
+        showWorkflowJsonModal(state.messages[msgIdx].meta!.tasks);
       }
     });
   });

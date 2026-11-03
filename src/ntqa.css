@@ -1925,6 +1925,240 @@ body {
   border-color: var(--accent-cyan);
 }
 
+/* Required Asterisk */
+.required-asterisk {
+  color: var(--accent-red, #ef4444);
+  font-weight: 800;
+  font-size: 14px;
+  margin-left: 2px;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+/* Error Highlight for Unanswered Required Parameters */
+.param-item-row.required-missing {
+  background: rgba(239, 68, 68, 0.1) !important;
+  border: 1px solid rgba(239, 68, 68, 0.5) !important;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.15);
+}
+
+.param-item-row.required-missing .param-label-text {
+  color: #fca5a5 !important;
+  font-weight: 600;
+}
+
+.param-val-pill.param-val-missing {
+  color: #ef4444 !important;
+  background: rgba(239, 68, 68, 0.2) !important;
+  border: 1px solid rgba(239, 68, 68, 0.6) !important;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  animation: pulse-missing-glow 2s infinite ease-in-out;
+}
+
+.param-val-pill.param-val-missing:hover {
+  background: rgba(239, 68, 68, 0.32) !important;
+  border-color: #ef4444 !important;
+  color: #fff !important;
+}
+
+@keyframes pulse-missing-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 rgba(239, 68, 68, 0);
+  }
+  50% {
+    box-shadow: 0 0 12px rgba(239, 68, 68, 0.45);
+  }
+}
+
+/* Optional Parameter Row & Pill */
+.param-item-row.optional-param-row {
+  opacity: 0.88;
+}
+
+.param-val-pill.param-val-optional {
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px dashed var(--border-subtle);
+  font-style: italic;
+  font-weight: 400;
+}
+
+.param-val-pill.param-val-optional:hover {
+  color: var(--accent-cyan);
+  background: hsla(185, 80%, 45%, 0.12);
+  border-color: var(--accent-cyan);
+}
+
+/* Task Missing Badge in Card Header */
+.task-missing-badge {
+  background: rgba(239, 68, 68, 0.18);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.45);
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Optional Questions Toggle Section */
+.optional-questions-section {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.08);
+}
+
+.btn-toggle-optional {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--accent-cyan, #06b6d4);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+
+.btn-toggle-optional:hover {
+  background: rgba(6, 182, 212, 0.14);
+  border-color: rgba(6, 182, 212, 0.4);
+  color: #38bdf8;
+}
+
+.toggle-optional-arrow {
+  font-size: 10px;
+  transition: transform 0.2s ease;
+}
+
+.optional-questions-container {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+/* Disabled Run Button When Required Fields Missing */
+.btn-execute-header.disabled-missing,
+.btn-execute-now.disabled-missing {
+  background: rgba(239, 68, 68, 0.14) !important;
+  color: #fca5a5 !important;
+  border: 1px solid rgba(239, 68, 68, 0.35) !important;
+  cursor: not-allowed !important;
+  opacity: 0.85;
+}
+
+.btn-execute-header.disabled-missing:hover,
+.btn-execute-now.disabled-missing:hover {
+  background: rgba(239, 68, 68, 0.18) !important;
+  border-color: rgba(239, 68, 68, 0.5) !important;
+}
+
+.batch-status-pill.missing {
+  background: rgba(239, 68, 68, 0.16);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+}
+
+/* Workflow JSON Buttons */
+.btn-view-workflow-json-header {
+  background: rgba(6, 182, 212, 0.12);
+  border: 1px solid rgba(6, 182, 212, 0.3);
+  color: var(--accent-cyan, #06b6d4);
+  font-family: var(--font-mono, monospace);
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 4px 9px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.2s ease;
+}
+
+.btn-view-workflow-json-header:hover {
+  background: rgba(6, 182, 212, 0.22);
+  border-color: var(--accent-cyan);
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.btn-view-workflow-json-footer {
+  background: hsla(230, 20%, 15%, 0.7);
+  border: 1px solid var(--border-subtle);
+  color: var(--accent-cyan, #06b6d4);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+
+.btn-view-workflow-json-footer:hover {
+  background: hsla(185, 80%, 45%, 0.15);
+  border-color: var(--accent-cyan);
+  color: #38bdf8;
+}
+
+/* Workflow JSON Modal & Viewer */
+.workflow-json-modal-container {
+  max-width: 720px !important;
+  width: 90% !important;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.workflow-json-viewer {
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 14px;
+  margin: 0;
+  max-height: 55vh;
+  overflow-y: auto;
+  font-family: var(--font-mono, 'JetBrains Mono', Consolas, monospace);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #a5f3fc;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.btn-copy-workflow-json {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.2s ease;
+}
+
+.btn-copy-workflow-json:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  border-color: var(--accent-cyan);
+}
+
 .workflow-actions-footer {
   display: flex;
   align-items: center;
@@ -2554,3 +2788,149 @@ body {
 }
 
 
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Inline Parameter Edit Widget  (inline row — no floating popup)
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.param-edit-widget {
+  /* Inline block — sits as a new row inside the param list */
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  background: #1a1f2e;
+  border: 1px solid rgba(99, 179, 237, 0.35);
+  border-radius: 10px;
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(99, 179, 237, 0.08),
+    0 0 24px rgba(6, 182, 212, 0.06);
+  overflow: hidden;
+  /* Animate open */
+  opacity: 0;
+  max-height: 0;
+  transition: opacity 0.18s ease, max-height 0.22s ease;
+  pointer-events: none;
+  margin-top: 4px;
+}
+
+.param-edit-widget--visible {
+  opacity: 1;
+  max-height: 200px;
+  pointer-events: all;
+}
+
+/* Red tint when the field is missing/required */
+.param-edit-widget--missing {
+  border-color: rgba(239, 68, 68, 0.5);
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(239, 68, 68, 0.12),
+    0 0 24px rgba(239, 68, 68, 0.10);
+}
+
+.param-edit-widget-body {
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.param-edit-widget-input {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(99, 179, 237, 0.3);
+  border-radius: 8px;
+  color: var(--text-primary, #e2e8f0);
+  font-family: var(--font-sans, inherit);
+  font-size: 13px;
+  padding: 8px 12px;
+  outline: none;
+  resize: none;
+  min-height: 38px;
+  max-height: 80px;
+  line-height: 1.5;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  box-sizing: border-box;
+}
+
+.param-edit-widget-input:focus {
+  border-color: var(--accent-cyan, #06b6d4);
+  box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.15);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.param-edit-widget--missing .param-edit-widget-input {
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+.param-edit-widget--missing .param-edit-widget-input:focus {
+  border-color: #f87171;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15);
+}
+
+.param-edit-widget-input::placeholder {
+  color: var(--text-muted, #94a3b8);
+  font-style: italic;
+}
+
+.param-edit-widget-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.param-edit-widget-hint {
+  flex: 1;
+  font-size: 10.5px;
+  color: var(--text-muted, #64748b);
+  letter-spacing: 0.02em;
+  user-select: none;
+}
+
+.param-edit-widget-save,
+.param-edit-widget-cancel {
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 5px 14px;
+  border-radius: 7px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+}
+
+.param-edit-widget-save {
+  background: var(--accent-cyan, #06b6d4);
+  color: #0f172a;
+  border-color: var(--accent-cyan, #06b6d4);
+}
+
+.param-edit-widget-save:hover {
+  background: #22d3ee;
+  border-color: #22d3ee;
+  box-shadow: 0 0 12px rgba(6, 182, 212, 0.4);
+}
+
+.param-edit-widget--missing .param-edit-widget-save {
+  background: #ef4444;
+  border-color: #ef4444;
+  color: #fff;
+}
+
+.param-edit-widget--missing .param-edit-widget-save:hover {
+  background: #f87171;
+  border-color: #f87171;
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.4);
+}
+
+.param-edit-widget-cancel {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-secondary, #94a3b8);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.param-edit-widget-cancel:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary, #e2e8f0);
+}
