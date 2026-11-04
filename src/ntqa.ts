@@ -567,10 +567,14 @@ async function sendChatMessage(text: string): Promise<void> {
     sessionTitleDisplay.textContent = trimmed.length > 25 ? trimmed.substring(0, 25) + '...' : trimmed;
   }
 
-  // Mark any previous workflow messages as superseded
+  // Mark any previous workflow messages as superseded and collapse all previous responses
   state.messages.forEach(m => {
+    if (m.meta) {
+      m.meta.isCollapsed = true;
+    }
     if (m.meta?.tasks) {
       m.meta.isSuperseded = true;
+      m.meta.isCollapsed = true;
     }
   });
 
@@ -1908,6 +1912,9 @@ function renderChatStream(): void {
       if (inlineTasks && inlineTasks.length > 0) {
         if (!msg.meta) msg.meta = {};
         msg.meta.tasks = inlineTasks;
+        if (msg.meta.isCollapsed === undefined) {
+          msg.meta.isCollapsed = true;
+        }
         state.currentPendingTasks = inlineTasks;
         innerContentHtml = `
           <div style="color: var(--text-primary); font-size: 14.5px; font-weight: 500; margin-bottom: 6px;">
