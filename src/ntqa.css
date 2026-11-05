@@ -1153,6 +1153,100 @@ body {
   word-break: break-all;
 }
 
+/* ────────────────── Rendered HTML Output Box & Modal Popup ────────────────── */
+.html-report-preview-box {
+  margin: 10px 12px;
+  padding: 10px 14px;
+  background: hsla(215, 25%, 12%, 0.7);
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.1));
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  transition: all 0.2s ease;
+}
+
+.html-report-preview-box:hover {
+  border-color: var(--accent-light, #60a5fa);
+  background: hsla(215, 25%, 15%, 0.85);
+}
+
+.html-report-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.html-report-icon {
+  font-size: 20px;
+}
+
+.html-report-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.html-report-desc {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.btn-open-html-modal {
+  padding: 6px 14px;
+  background: var(--accent, #3b82f6);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.btn-open-html-modal:hover {
+  filter: brightness(1.15);
+  transform: translateY(-1px);
+}
+
+/* HTML Result Modal (Similar to JSON Modal) */
+.html-result-modal-container {
+  max-width: 980px !important;
+  width: 94% !important;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.html-modal-body {
+  padding: 0 !important;
+  flex: 1;
+  min-height: 65vh;
+  max-height: 75vh;
+  overflow: hidden;
+  background: #ffffff;
+  border-radius: 0 0 4px 4px;
+}
+
+.html-modal-iframe {
+  width: 100%;
+  height: 100%;
+  min-height: 65vh;
+  border: none;
+  background: #ffffff;
+  display: block;
+}
+
+[data-theme="light"] .html-report-preview-box {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
 /* ────────────────── Sticky Floating Prompt Input Box (ChatGPT / Claude Style) ────────────────── */
 .prompt-dock-container {
   position: absolute;

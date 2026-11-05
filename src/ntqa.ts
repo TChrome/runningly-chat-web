@@ -681,6 +681,65 @@ function resolveDownloadUrl(rawUrl: string | undefined, filename: string): strin
   return `${NTQA_API_BASE}${cleanPath}`;
 }
 
+const htmlStore = new Map<string, { html: string; title: string }>();
+
+/**
+ * Safely extract rendered HTML (e.g. <table>, <div>, or full HTML document)
+ * from task output, summary, or JSON payload.
+ */
+function extractHtmlFromResult(output?: string, summary?: string): string | null {
+  const sources = [summary, output].filter(Boolean) as string[];
+  for (const src of sources) {
+    if (!src || typeof src !== 'string') continue;
+
+    // 1. Check for markdown ```html ... ``` blocks
+    const mdMatch = src.match(/```(?:html)?\s*([\s\S]*?)```/i);
+    if (mdMatch && mdMatch[1]) {
+      const candidate = mdMatch[1].trim();
+      if (candidate.startsWith('<') && (candidate.includes('<table') || candidate.includes('<div') || candidate.includes('<html') || candidate.includes('<!DOCTYPE') || candidate.includes('<style'))) {
+        return candidate;
+      }
+    }
+
+    // 2. Check for explicit <table>...</table> tags
+    const tableMatch = src.match(/<table[\s\S]*?<\/table>/i);
+    if (tableMatch) {
+      return tableMatch[0].trim();
+    }
+
+    // 3. Check for full HTML documents: <!DOCTYPE ... </html> or <html ... </html>
+    const fullDocMatch = src.match(/(?:<!DOCTYPE\s+html[\s\S]*?<\/html>|<html[\s\S]*?<\/html>)/i);
+    if (fullDocMatch) {
+      return fullDocMatch[0].trim();
+    }
+
+    // 4. Check for top-level styled HTML container: <div style=...>...</div>
+    const styledDivMatch = src.match(/<div\s+style=[\s\S]*?<\/div>/i);
+    if (styledDivMatch && styledDivMatch[0].includes('style=')) {
+      return styledDivMatch[0].trim();
+    }
+
+    // 5. Check JSON payload for "html" or HTML "summary" properties
+    try {
+      for (const line of src.split('\n').reverse()) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+          const parsed = JSON.parse(trimmed);
+          if (parsed.html && typeof parsed.html === 'string' && parsed.html.includes('<') && parsed.html.includes('>')) {
+            return parsed.html.trim();
+          }
+          if (parsed.summary && typeof parsed.summary === 'string' && parsed.summary.includes('<table')) {
+            const innerMatch = parsed.summary.match(/<table[\s\S]*?<\/table>/i);
+            return innerMatch ? innerMatch[0].trim() : parsed.summary.trim();
+          }
+        }
+      }
+    } catch {}
+  }
+
+  return null;
+}
+
 /**
  * Render a single task's execution results card (logs, parameters, downloads, LLM summary).
  */
@@ -714,6 +773,14 @@ function renderExecutionCard(res: TaskRunResult, msgIndex: number, rIdx: number)
     }
   }
 
+  const htmlContent = extractHtmlFromResult(res.output, res.summary);
+  const isSummaryHtml = !!(res.summary && htmlContent && (res.summary.includes('<table') || res.summary === htmlContent || res.summary.trim().startsWith('<')));
+  let htmlKey = '';
+  if (htmlContent) {
+    htmlKey = `html_${msgIndex}_${rIdx}_${Date.now()}`;
+    htmlStore.set(htmlKey, { html: htmlContent, title: `${res.task || 'Task'} - Rendered HTML Output` });
+  }
+
   return `
     <div class="machine-execution-card" id="execCard_${msgIndex}_${rIdx}">
       <div class="execution-summary-header" data-action="toggle-exec-card" title="Click to collapse / expand task output">
@@ -723,9 +790,27 @@ function renderExecutionCard(res: TaskRunResult, msgIndex: number, rIdx: number)
         </div>
         <span class="status-pill-exec ${statusClass}">${statusText}</span>
       </div>
+        ${htmlContent ? `
+          <div class="html-report-preview-box">
+            <div class="html-report-info">
+              <span class="html-report-icon">📊</span>
+              <div class="html-report-text">
+                <div class="html-report-title">Rendered HTML Report</div>
+                <div class="html-report-desc">Visual formatted output (click to view in full popup)</div>
+              </div>
+            </div>
+            <button class="btn-open-html-modal" data-html-key="${htmlKey}" title="Open full rendered HTML in popup modal">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                <polyline points="15 3 21 3 21 9"></polyline>
+                <line x1="10" y1="14" x2="21" y2="3"></line>
+              </svg>
+              <span>View in Popup</span>
+            </button>
+          </div>
+        ` : ''}
 
-      <div class="execution-card-body">
-        ${res.summary ? `
+        ${res.summary && !isSummaryHtml ? `
           <div class="execution-ai-summary">
             <div class="ai-summary-label">Summary & Insights</div>
             <div>${escapeHtml(res.summary)}</div>
@@ -738,7 +823,8 @@ function renderExecutionCard(res: TaskRunResult, msgIndex: number, rIdx: number)
             <a href="${escapeHtml(downloadInfo.url)}" download="${escapeHtml(downloadInfo.filename)}" target="_blank" style="padding: 4px 10px; background: var(--accent); color: #fff; border-radius: 5px; text-decoration: none; font-size: 12px; font-weight: 600; cursor: pointer;">Download</a>
           </div>
         ` : ''}
-
+        
+      <div class="execution-card-body">
         <!-- Raw Logs & Output Block -->
         <div class="execution-details-drawer">
           ${res.command ? `
@@ -1379,6 +1465,131 @@ function isAnswered(v: any): boolean {
   if (v === null || v === undefined) return false;
   const s = String(v).trim();
   return s !== '' && s !== 'null' && s !== 'undefined';
+}
+
+function showHtmlModal(html: string, title: string = 'Rendered HTML Output'): void {
+  let modal = document.querySelector('#htmlResultModal') as HTMLElement | null;
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.id = 'htmlResultModal';
+    modal.innerHTML = `
+      <div class="modal-container html-result-modal-container">
+        <div class="modal-header">
+          <div class="modal-title-row">
+            <span class="modal-icon" style="font-size: 18px;">📊</span>
+            <span class="modal-title" id="htmlModalTitle">Rendered HTML Output</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <button class="btn-copy-workflow-json" id="btnOpenHtmlNewTab" title="Open full report in a new browser tab">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                <polyline points="15 3 21 3 21 9"></polyline>
+                <line x1="10" y1="14" x2="21" y2="3"></line>
+              </svg>
+              <span>New Tab</span>
+            </button>
+            <button class="modal-close-btn" id="btnCloseHtmlModal" title="Close">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div class="modal-body html-modal-body">
+          <iframe id="htmlModalIframe" class="html-modal-iframe" sandbox="allow-same-origin allow-scripts" title="Rendered HTML Output"></iframe>
+        </div>
+        <div class="modal-footer" style="justify-content: flex-end;">
+          <button class="btn-secondary" id="btnDoneHtmlModal">Close</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+
+    const closeBtn = modal.querySelector('#btnCloseHtmlModal');
+    const doneBtn = modal.querySelector('#btnDoneHtmlModal');
+    const newTabBtn = modal.querySelector('#btnOpenHtmlNewTab');
+
+    const closeModal = () => modal?.classList.remove('active');
+    closeBtn?.addEventListener('click', closeModal);
+    doneBtn?.addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeModal();
+    });
+
+    newTabBtn?.addEventListener('click', () => {
+      const activeHtml = (modal as any)?.__activeHtml || '';
+      if (activeHtml) {
+        const blob = new Blob([activeHtml], { type: 'text/html;charset=utf-8' });
+        const blobUrl = URL.createObjectURL(blob);
+        window.open(blobUrl, '_blank');
+      }
+    });
+  }
+
+  (modal as any).__activeHtml = html;
+  const titleEl = modal.querySelector('#htmlModalTitle');
+  if (titleEl) titleEl.textContent = title || 'Rendered HTML Output';
+
+  const iframe = modal.querySelector('#htmlModalIframe') as HTMLIFrameElement | null;
+  if (iframe) {
+    let docHtml = html;
+    if (!docHtml.toLowerCase().includes('<html') && !docHtml.toLowerCase().includes('<!doctype')) {
+      docHtml = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <style>
+            body {
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+              padding: 24px;
+              margin: 0;
+              background-color: #ffffff;
+              color: #1e293b;
+            }
+            table {
+              border-collapse: collapse;
+              width: 100%;
+              max-width: 1000px;
+              margin: 0 auto;
+              background: #ffffff;
+              box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+              border-radius: 8px;
+              overflow: hidden;
+            }
+            th, td {
+              padding: 12px 16px;
+              text-align: left;
+              border-bottom: 1px solid #e2e8f0;
+            }
+            th {
+              background-color: #2c3e50;
+              color: #ffffff;
+              font-weight: 600;
+              text-transform: uppercase;
+              font-size: 12px;
+              letter-spacing: 0.5px;
+            }
+            tr:nth-child(even) {
+              background-color: #f8fafc;
+            }
+            tr:hover {
+              background-color: #f1f5f9;
+            }
+          </style>
+        </head>
+        <body>
+          ${html}
+        </body>
+        </html>
+      `;
+    }
+    iframe.srcdoc = docHtml;
+  }
+
+  modal.classList.add('active');
 }
 
 function showWorkflowJsonModal(tasks: any[]): void {
@@ -2470,6 +2681,19 @@ function generateUUID(): string {
 // ─────────────────────────────────────────────────────────────────────────────
 // Event Listeners & Interactions
 // ─────────────────────────────────────────────────────────────────────────────
+
+// Global delegate for HTML modal popup buttons
+document.addEventListener('click', (e) => {
+  const target = (e.target as HTMLElement).closest('.btn-open-html-modal');
+  if (target) {
+    e.stopPropagation();
+    const key = target.getAttribute('data-html-key');
+    if (key && htmlStore.has(key)) {
+      const data = htmlStore.get(key)!;
+      showHtmlModal(data.html, data.title);
+    }
+  }
+});
 
 // Send button click
 btnSend.addEventListener('click', () => {
