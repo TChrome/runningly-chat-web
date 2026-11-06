@@ -684,6 +684,37 @@ function resolveDownloadUrl(rawUrl: string | undefined, filename: string): strin
 const htmlStore = new Map<string, { html: string; title: string }>();
 
 /**
+ * Sanitize HTML content extracted from task outputs to remove leftover
+ * JSON/bash escaped quotes in tags (e.g. src=\"https://...\" -> src="https://...").
+ */
+function sanitizeHtmlContent(rawHtml: string): string {
+  let cleaned = rawHtml.trim();
+
+  // If the entire payload was wrapped in string quotes
+  if ((cleaned.startsWith('"') && cleaned.endsWith('"')) || (cleaned.startsWith("'") && cleaned.endsWith("'"))) {
+    try {
+      cleaned = JSON.parse(cleaned);
+    } catch {
+      cleaned = cleaned.slice(1, -1);
+    }
+  }
+
+  // 1. Fix escaped quotes in tag attributes: src=\"https://...\" or src="\"https://...\""
+  cleaned = cleaned.replace(/(\b[a-zA-Z0-9_\-:]+\s*=\s*)["']?\\+(["'])(.*?)\\+\2["']?/g, '$1"$3"');
+
+  // 2. Fix attributes where only quotes had backslashes: src=\"https://...\"
+  cleaned = cleaned.replace(/(\b[a-zA-Z0-9_\-:]+\s*=\s*)\\+(["'])(.*?)\\+\2/g, '$1"$3"');
+
+  // 3. Remove leading backslash-quotes or encoded quotes inside quoted attribute: src="\"https...\""
+  cleaned = cleaned.replace(/(\b[a-zA-Z0-9_\-:]+\s*=\s*["'])(?:\\+["']|%22|&quot;)+(.*?)(?:\\+["']|%22|&quot;)*(["'])/gi, '$1$2$3');
+
+  // 4. Any remaining escaped quotes inside tag angle brackets
+  cleaned = cleaned.replace(/<[^>]+>/g, (tag) => tag.replace(/\\+(["'])/g, '$1'));
+
+  return cleaned;
+}
+
+/**
  * Safely extract rendered HTML (e.g. <table>, <div>, or full HTML document)
  * from task output, summary, or JSON payload.
  */
@@ -692,49 +723,54 @@ function extractHtmlFromResult(output?: string, summary?: string): string | null
   for (const src of sources) {
     if (!src || typeof src !== 'string') continue;
 
-    // 1. Check for markdown ```html ... ``` blocks
-    const mdMatch = src.match(/```(?:html)?\s*([\s\S]*?)```/i);
-    if (mdMatch && mdMatch[1]) {
-      const candidate = mdMatch[1].trim();
-      if (candidate.startsWith('<') && (candidate.includes('<table') || candidate.includes('<div') || candidate.includes('<html') || candidate.includes('<!DOCTYPE') || candidate.includes('<style'))) {
-        return candidate;
-      }
-    }
-
-    // 2. Check for explicit <table>...</table> tags
-    const tableMatch = src.match(/<table[\s\S]*?<\/table>/i);
-    if (tableMatch) {
-      return tableMatch[0].trim();
-    }
-
-    // 3. Check for full HTML documents: <!DOCTYPE ... </html> or <html ... </html>
-    const fullDocMatch = src.match(/(?:<!DOCTYPE\s+html[\s\S]*?<\/html>|<html[\s\S]*?<\/html>)/i);
-    if (fullDocMatch) {
-      return fullDocMatch[0].trim();
-    }
-
-    // 4. Check for top-level styled HTML container: <div style=...>...</div>
-    const styledDivMatch = src.match(/<div\s+style=[\s\S]*?<\/div>/i);
-    if (styledDivMatch && styledDivMatch[0].includes('style=')) {
-      return styledDivMatch[0].trim();
-    }
-
-    // 5. Check JSON payload for "html" or HTML "summary" properties
+    // 1. Priority: Check JSON payload for "html", "body", "content", "response", or HTML "summary" properties
+    // Using JSON.parse decodes backslash-escapes (\" -> ", \n -> newline) naturally.
     try {
       for (const line of src.split('\n').reverse()) {
         const trimmed = line.trim();
-        if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
-          const parsed = JSON.parse(trimmed);
+        if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('"{') && trimmed.endsWith('}"'))) {
+          const parsed = JSON.parse(trimmed.startsWith('"{') ? JSON.parse(trimmed) : trimmed);
           if (parsed.html && typeof parsed.html === 'string' && parsed.html.includes('<') && parsed.html.includes('>')) {
-            return parsed.html.trim();
+            return sanitizeHtmlContent(parsed.html);
           }
           if (parsed.summary && typeof parsed.summary === 'string' && parsed.summary.includes('<table')) {
             const innerMatch = parsed.summary.match(/<table[\s\S]*?<\/table>/i);
-            return innerMatch ? innerMatch[0].trim() : parsed.summary.trim();
+            return sanitizeHtmlContent(innerMatch ? innerMatch[0].trim() : parsed.summary.trim());
+          }
+          if (parsed.body && typeof parsed.body === 'string' && (parsed.body.includes('<table') || parsed.body.includes('<!DOCTYPE') || parsed.body.includes('<html'))) {
+            const docMatch = parsed.body.match(/(?:<!DOCTYPE\s+html[\s\S]*?<\/html>|<html[\s\S]*?<\/html>|<table[\s\S]*?<\/table>)/i);
+            return sanitizeHtmlContent(docMatch ? docMatch[0].trim() : parsed.body.trim());
           }
         }
       }
     } catch {}
+
+    // 2. Check for markdown ```html ... ``` blocks
+    const mdMatch = src.match(/```(?:html)?\s*([\s\S]*?)```/i);
+    if (mdMatch && mdMatch[1]) {
+      const candidate = mdMatch[1].trim();
+      if (candidate.startsWith('<') && (candidate.includes('<table') || candidate.includes('<div') || candidate.includes('<html') || candidate.includes('<!DOCTYPE') || candidate.includes('<style'))) {
+        return sanitizeHtmlContent(candidate);
+      }
+    }
+
+    // 3. Check for explicit <table>...</table> tags
+    const tableMatch = src.match(/<table[\s\S]*?<\/table>/i);
+    if (tableMatch) {
+      return sanitizeHtmlContent(tableMatch[0].trim());
+    }
+
+    // 4. Check for full HTML documents: <!DOCTYPE ... </html> or <html ... </html>
+    const fullDocMatch = src.match(/(?:<!DOCTYPE\s+html[\s\S]*?<\/html>|<html[\s\S]*?<\/html>)/i);
+    if (fullDocMatch) {
+      return sanitizeHtmlContent(fullDocMatch[0].trim());
+    }
+
+    // 5. Check for top-level styled HTML container: <div style=...>...</div>
+    const styledDivMatch = src.match(/<div\s+style=[\s\S]*?<\/div>/i);
+    if (styledDivMatch && styledDivMatch[0].includes('style=')) {
+      return sanitizeHtmlContent(styledDivMatch[0].trim());
+    }
   }
 
   return null;
@@ -1528,13 +1564,14 @@ function showHtmlModal(html: string, title: string = 'Rendered HTML Output'): vo
     });
   }
 
-  (modal as any).__activeHtml = html;
+  const cleanHtml = sanitizeHtmlContent(html);
+  (modal as any).__activeHtml = cleanHtml;
   const titleEl = modal.querySelector('#htmlModalTitle');
   if (titleEl) titleEl.textContent = title || 'Rendered HTML Output';
 
   const iframe = modal.querySelector('#htmlModalIframe') as HTMLIFrameElement | null;
   if (iframe) {
-    let docHtml = html;
+    let docHtml = cleanHtml;
     if (!docHtml.toLowerCase().includes('<html') && !docHtml.toLowerCase().includes('<!doctype')) {
       docHtml = `
         <!DOCTYPE html>
@@ -1581,7 +1618,7 @@ function showHtmlModal(html: string, title: string = 'Rendered HTML Output'): vo
           </style>
         </head>
         <body>
-          ${html}
+          ${cleanHtml}
         </body>
         </html>
       `;
