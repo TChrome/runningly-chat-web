@@ -1292,6 +1292,12 @@ function renderTasksList(): void {
             <div style="display: flex; gap: 4px; align-items: center;">
               <span class="task-card-category">${escapeHtml(task.category || 'Task')}</span>
               <span class="task-pill">${task.command ? 'CLI' : 'APP'}</span>
+              <button class="btn-task-card-edit" data-task-name="${escapeHtml(task.task_name)}" title="Edit Task JSON & Questions">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                </svg>
+              </button>
             </div>
           </div>
           <p class="task-card-desc">${escapeHtml(task.description)}</p>
@@ -1311,9 +1317,22 @@ function renderTasksList(): void {
     `;
   }).join('');
 
+  // Attach edit button click events
+  taskListContainer.querySelectorAll('.btn-task-card-edit').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const taskName = btn.getAttribute('data-task-name') || '';
+      const task = state.availableTasks.find(t => t.task_name === taskName);
+      if (task) {
+        openEditTaskModal(task);
+      }
+    });
+  });
+
   // Attach click events to insert task prompt
   taskListContainer.querySelectorAll('.task-card').forEach(card => {
-    card.addEventListener('click', () => {
+    card.addEventListener('click', (e) => {
+      if ((e.target as HTMLElement).closest('.btn-task-card-edit')) return;
       const taskName = card.getAttribute('data-task-name') || '';
       promptInput.value = `I want to run "${taskName}". Please ask me for any required details.`;
       promptInput.focus();
@@ -1321,6 +1340,322 @@ function renderTasksList(): void {
       closeMobileSidebar();
     });
   });
+}
+
+// ────────────────── Edit Task JSON / Questions Modal ──────────────────
+
+function createQuestionRowElement(questionText: string, idx: number): HTMLElement {
+  const row = document.createElement('div');
+  row.className = 'edit-question-row';
+  row.innerHTML = `
+    <span class="question-idx-badge" title="Dynamic parameter binding">\${answer${idx}}</span>
+    <input type="text" class="form-input edit-question-input" value="${escapeHtml(questionText)}" placeholder="e.g. What is the rotation speed?*" />
+    <button type="button" class="btn-remove-question" title="Remove question">✕</button>
+  `;
+  const removeBtn = row.querySelector('.btn-remove-question');
+  removeBtn?.addEventListener('click', () => {
+    row.remove();
+    renumberQuestionRows();
+  });
+  return row;
+}
+
+function renumberQuestionRows(): void {
+  const modal = document.querySelector('#editTaskModal');
+  if (!modal) return;
+  const rows = modal.querySelectorAll('.edit-question-row');
+  rows.forEach((row, i) => {
+    const badge = row.querySelector('.question-idx-badge');
+    if (badge) {
+      badge.textContent = `\${answer${i + 1}}`;
+    }
+  });
+}
+
+function populateFormFromTask(t: any): void {
+  const modal = document.querySelector('#editTaskModal');
+  if (!modal) return;
+
+  const nameInput = modal.querySelector('#editTaskNameInput') as HTMLInputElement;
+  const catInput = modal.querySelector('#editTaskCategoryInput') as HTMLInputElement;
+  const descInput = modal.querySelector('#editTaskDescInput') as HTMLTextAreaElement;
+  const cmdInput = modal.querySelector('#editTaskCommandInput') as HTMLTextAreaElement;
+  const questionsList = modal.querySelector('#editQuestionsList') as HTMLElement;
+  const jsonTextarea = modal.querySelector('#editTaskJsonTextarea') as HTMLTextAreaElement;
+
+  if (nameInput) nameInput.value = t.task_name || '';
+  if (catInput) catInput.value = t.category || 'Custom';
+  if (descInput) descInput.value = t.description || '';
+  if (cmdInput) cmdInput.value = Array.isArray(t.command) ? t.command.join('\n') : (t.command || '');
+
+  if (questionsList) {
+    questionsList.innerHTML = '';
+    const qs = Array.isArray(t.questions) ? t.questions : [];
+    qs.forEach((q: string, idx: number) => {
+      questionsList.appendChild(createQuestionRowElement(q, idx + 1));
+    });
+  }
+
+  if (jsonTextarea) {
+    const cleanCopy = { ...t };
+    delete cleanCopy.key_map;
+    jsonTextarea.value = JSON.stringify(cleanCopy, null, 2);
+  }
+}
+
+function collectTaskFromForm(): any {
+  const modal = document.querySelector('#editTaskModal');
+  const activeTask = (modal as any)?.__activeTask || {};
+  const result: any = { ...activeTask };
+
+  const nameInput = modal?.querySelector('#editTaskNameInput') as HTMLInputElement;
+  const catInput = modal?.querySelector('#editTaskCategoryInput') as HTMLInputElement;
+  const descInput = modal?.querySelector('#editTaskDescInput') as HTMLTextAreaElement;
+  const cmdInput = modal?.querySelector('#editTaskCommandInput') as HTMLTextAreaElement;
+  const questionsList = modal?.querySelector('#editQuestionsList') as HTMLElement;
+
+  if (nameInput) result.task_name = nameInput.value.trim();
+  if (catInput) result.category = catInput.value.trim() || 'Custom';
+  if (descInput) result.description = descInput.value.trim();
+  if (cmdInput) result.command = cmdInput.value;
+
+  const questions: string[] = [];
+  if (questionsList) {
+    questionsList.querySelectorAll('.edit-question-input').forEach((inp) => {
+      const val = (inp as HTMLInputElement).value.trim();
+      if (val) questions.push(val);
+    });
+  }
+  result.questions = questions;
+
+  delete result.key_map;
+  return result;
+}
+
+function openEditTaskModal(task: TaskConfig): void {
+  let modal = document.querySelector('#editTaskModal') as HTMLElement | null;
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.id = 'editTaskModal';
+    modal.innerHTML = `
+      <div class="modal-container edit-task-modal-container">
+        <div class="modal-header">
+          <div class="modal-title-row">
+            <span class="modal-icon">✏️</span>
+            <div>
+              <span class="modal-title" id="editModalHeaderTitle">Edit Task Definition</span>
+              <div class="modal-subtitle-path" id="editModalSubPath"></div>
+            </div>
+          </div>
+          <button class="modal-close-btn" id="btnCloseEditTaskModal" title="Close">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+
+        <div class="edit-modal-tabs">
+          <button class="edit-tab-btn active" id="tabEditForm">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+            <span>Form Editor</span>
+          </button>
+          <button class="edit-tab-btn" id="tabEditJson">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
+            <span>Raw JSON</span>
+          </button>
+        </div>
+
+        <div class="modal-body" style="padding: 16px; max-height: calc(85vh - 160px); overflow-y: auto;">
+          <!-- Form View -->
+          <div id="editTaskFormView">
+            <div class="modal-grid-2col" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+              <div class="form-group">
+                <label class="form-label">Task Name</label>
+                <input type="text" class="form-input" id="editTaskNameInput" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Category / Pack</label>
+                <input type="text" class="form-input" id="editTaskCategoryInput" />
+              </div>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 12px;">
+              <label class="form-label">Description</label>
+              <textarea class="form-textarea" id="editTaskDescInput" rows="2" style="min-height: 54px;"></textarea>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 14px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <label class="form-label" style="margin-bottom: 0;">
+                  Questions & Dynamic Parameters
+                  <span style="display: block; font-size: 11px; color: var(--text-muted); font-weight: normal;">
+                    Index 1 binds to \${answer1}, index 2 to \${answer2}. End with * for required questions.
+                  </span>
+                </label>
+                <button type="button" class="btn-add-question" id="btnAddQuestionItem">
+                  + Add Question
+                </button>
+              </div>
+              <div class="edit-questions-list" id="editQuestionsList"></div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">
+                Executable Command
+                <span style="display: block; font-size: 11px; color: var(--text-muted); font-weight: normal;">
+                  Shell, Node.js (<code>node -e '...' "\${answer1}"</code>), or Python (<code>python3 -c '...' "\${answer1}"</code>)
+                </span>
+              </label>
+              <textarea class="form-textarea edit-command-code" id="editTaskCommandInput" style="font-family: var(--font-mono); font-size: 12px; min-height: 100px;"></textarea>
+            </div>
+          </div>
+
+          <!-- Raw JSON View -->
+          <div id="editTaskJsonView" style="display: none;">
+            <div class="form-group">
+              <label class="form-label">
+                Task Schema JSON
+                <span style="font-size: 11px; color: var(--text-muted);">Directly edit JSON fields, command, or questions array</span>
+              </label>
+              <textarea class="form-textarea edit-json-textarea" id="editTaskJsonTextarea" style="font-family: var(--font-mono); font-size: 12px; min-height: 320px;"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer" style="justify-content: space-between;">
+          <button class="btn-secondary" id="btnCancelEditTask">Cancel</button>
+          <button class="btn-primary" id="btnSaveTaskChanges">
+            <span>💾 Save Changes</span>
+          </button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+
+    const closeBtn = modal.querySelector('#btnCloseEditTaskModal');
+    const cancelBtn = modal.querySelector('#btnCancelEditTask');
+    const closeModal = () => modal?.classList.remove('active');
+    closeBtn?.addEventListener('click', closeModal);
+    cancelBtn?.addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeModal();
+    });
+
+    const tabForm = modal.querySelector('#tabEditForm') as HTMLButtonElement;
+    const tabJson = modal.querySelector('#tabEditJson') as HTMLButtonElement;
+    const formView = modal.querySelector('#editTaskFormView') as HTMLElement;
+    const jsonView = modal.querySelector('#editTaskJsonView') as HTMLElement;
+    const jsonTextarea = modal.querySelector('#editTaskJsonTextarea') as HTMLTextAreaElement;
+
+    tabForm?.addEventListener('click', () => {
+      try {
+        const parsed = JSON.parse(jsonTextarea.value);
+        populateFormFromTask(parsed);
+      } catch (err: any) {
+        alert('Cannot switch to Form view: Invalid JSON syntax in editor.');
+        return;
+      }
+      tabForm.classList.add('active');
+      tabJson.classList.remove('active');
+      formView.style.display = 'block';
+      jsonView.style.display = 'none';
+    });
+
+    tabJson?.addEventListener('click', () => {
+      const currentObj = collectTaskFromForm();
+      jsonTextarea.value = JSON.stringify(currentObj, null, 2);
+      tabJson.classList.add('active');
+      tabForm.classList.remove('active');
+      jsonView.style.display = 'block';
+      formView.style.display = 'none';
+    });
+
+    const addQBtn = modal.querySelector('#btnAddQuestionItem');
+    addQBtn?.addEventListener('click', () => {
+      const container = modal?.querySelector('#editQuestionsList');
+      if (container) {
+        const nextIdx = container.querySelectorAll('.edit-question-row').length + 1;
+        const row = createQuestionRowElement('', nextIdx);
+        container.appendChild(row);
+        const input = row.querySelector('input');
+        input?.focus();
+      }
+    });
+
+    const saveBtn = modal.querySelector('#btnSaveTaskChanges') as HTMLButtonElement;
+    saveBtn?.addEventListener('click', async () => {
+      let finalTaskObj: any;
+      const isJsonActive = jsonView.style.display !== 'none';
+      if (isJsonActive) {
+        try {
+          finalTaskObj = JSON.parse(jsonTextarea.value);
+        } catch (err: any) {
+          alert('Invalid JSON syntax: ' + err.message);
+          return;
+        }
+      } else {
+        finalTaskObj = collectTaskFromForm();
+      }
+
+      if (!finalTaskObj.task_name || !finalTaskObj.task_name.trim()) {
+        alert('Task Name is required.');
+        return;
+      }
+
+      const activeTask = (modal as any)?.__activeTask;
+      const originalFilePath = activeTask?.file_path || activeTask?.filename;
+
+      saveBtn.disabled = true;
+      saveBtn.innerHTML = '<span>⏳ Saving...</span>';
+
+      try {
+        const res = await fetch(`${NTQA_API_BASE}/tasks/save`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            task: finalTaskObj,
+            filename: originalFilePath,
+            category: finalTaskObj.category || activeTask?.category || 'Custom'
+          })
+        });
+
+        if (!res.ok) {
+          const errData = await res.json();
+          throw new Error(errData.detail || `HTTP ${res.status}`);
+        }
+
+        await loadAvailableTasks();
+        closeModal();
+        alert(`✅ Task "${finalTaskObj.task_name}" updated successfully!`);
+      } catch (err: any) {
+        alert(`Failed to save task: ${err.message}`);
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = '<span>💾 Save Changes</span>';
+      }
+    });
+  }
+
+  (modal as any).__activeTask = task;
+  const titleEl = modal.querySelector('#editModalHeaderTitle');
+  const pathEl = modal.querySelector('#editModalSubPath');
+  if (titleEl) titleEl.textContent = `Edit Task: ${task.task_name}`;
+  if (pathEl) pathEl.textContent = task.file_path ? `File: NTQA/tasks/${task.file_path}` : `Category: ${task.category || 'Custom'}`;
+
+  const tabForm = modal.querySelector('#tabEditForm');
+  const tabJson = modal.querySelector('#tabEditJson');
+  const formView = modal.querySelector('#editTaskFormView') as HTMLElement;
+  const jsonView = modal.querySelector('#editTaskJsonView') as HTMLElement;
+  tabForm?.classList.add('active');
+  tabJson?.classList.remove('active');
+  if (formView) formView.style.display = 'block';
+  if (jsonView) jsonView.style.display = 'none';
+
+  populateFormFromTask(task);
+
+  modal.classList.add('active');
 }
 
 // ────────────────── Import cURL / Add Task Modal Logic ──────────────────

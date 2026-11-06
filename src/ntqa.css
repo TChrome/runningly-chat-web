@@ -1247,6 +1247,144 @@ body {
   border-color: #e2e8f0;
 }
 
+/* ────────────────── Edit Task Modal & Sidebar Edit Button ────────────────── */
+.btn-task-card-edit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  background: hsla(220, 15%, 25%, 0.4);
+  color: var(--text-muted);
+  border: 1px solid var(--border-subtle);
+  cursor: pointer;
+  transition: var(--transition-smooth);
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.btn-task-card-edit:hover {
+  background: hsla(265, 85%, 65%, 0.25);
+  color: var(--accent);
+  border-color: var(--accent);
+  transform: scale(1.08);
+}
+
+.edit-task-modal-container {
+  max-width: 680px;
+  width: 92vw;
+}
+
+.modal-subtitle-path {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  margin-top: 2px;
+}
+
+.edit-modal-tabs {
+  display: flex;
+  gap: 8px;
+  padding: 8px 16px;
+  background: hsla(220, 15%, 12%, 0.5);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.edit-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid transparent;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+}
+
+.edit-tab-btn:hover {
+  color: var(--text-primary);
+  background: hsla(220, 15%, 20%, 0.5);
+}
+
+.edit-tab-btn.active {
+  background: hsla(265, 85%, 65%, 0.15);
+  color: var(--accent);
+  border-color: hsla(265, 85%, 65%, 0.3);
+}
+
+.edit-questions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.edit-question-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.question-idx-badge {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 4px 6px;
+  background: hsla(220, 15%, 20%, 0.6);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  color: var(--accent-cyan);
+  white-space: nowrap;
+  min-width: 76px;
+  text-align: center;
+  user-select: none;
+}
+
+.btn-remove-question {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: hsla(0, 70%, 50%, 0.1);
+  color: var(--accent-red);
+  border: 1px solid hsla(0, 70%, 50%, 0.2);
+  cursor: pointer;
+  font-size: 12px;
+  transition: var(--transition-smooth);
+  flex-shrink: 0;
+}
+
+.btn-remove-question:hover {
+  background: hsla(0, 70%, 50%, 0.25);
+  border-color: var(--accent-red);
+}
+
+.btn-add-question {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: hsla(265, 85%, 65%, 0.12);
+  color: var(--accent);
+  border: 1px solid hsla(265, 85%, 65%, 0.25);
+  cursor: pointer;
+  font-size: 11.5px;
+  font-weight: 500;
+  transition: var(--transition-smooth);
+}
+
+.btn-add-question:hover {
+  background: hsla(265, 85%, 65%, 0.22);
+  border-color: var(--accent);
+}
+
 /* ────────────────── Sticky Floating Prompt Input Box (ChatGPT / Claude Style) ────────────────── */
 .prompt-dock-container {
   position: absolute;
