@@ -53,6 +53,10 @@
             "destination": "/ntqa.html"
         },
         {
+            "source": "/(ntqa|hub)/",
+            "destination": "/ntqa.html"
+        },
+        {
             "source": "/ntqa.html",
             "destination": "/ntqa.html"
         },

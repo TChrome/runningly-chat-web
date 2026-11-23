@@ -24,7 +24,7 @@ interface User {
 }
 
 // Extend IncomingMessage to include session and passport properties
-interface AuthenticatedRequest extends IncomingMessage {
+export interface AuthenticatedRequest extends IncomingMessage {
     session: session.Session & Partial<session.SessionData> & { next_url?: string };
     user?: User;
     isAuthenticated(): boolean;
@@ -108,10 +108,14 @@ function runniglyAuthPlugin() {
             });
 
             // 1.5. URL Rewrites for NTQA Hub
-            server.middlewares.use((req: any, _res, next) => {
+            server.middlewares.use((req: any, _res: any, next: any) => {
                 if (req.url) {
+                    req._rawOriginalUrl = req.originalUrl || req.url;
                     const parts = req.url.split('?');
-                    const pathname = parts[0].replace(/\/$/, '');
+                    let pathname = parts[0].replace(/\/+$/, '') || '/';
+                    if (pathname.startsWith('//')) {
+                        pathname = '/' + pathname.replace(/^\/+/, '');
+                    }
                     if (pathname === '/ntqa' || pathname === '/hub') {
                         req.url = '/ntqa.html' + (parts.length > 1 ? '?' + parts[1] : '');
                     }
@@ -130,8 +134,51 @@ function runniglyAuthPlugin() {
             server.middlewares.use(passport.initialize() as any);
             server.middlewares.use(passport.session() as any);
 
+            // 2.5. Page Authentication Enforcement (Hub and Index)
+            server.middlewares.use((req: any, res: ServerResponse, next: any) => {
+                if (req.method !== 'GET' && req.method !== 'HEAD') {
+                    return next();
+                }
+
+                const rawUrl = req._rawOriginalUrl || req.originalUrl || req.url || '';
+                const parts = rawUrl.split('?');
+                let pathname = parts[0].replace(/\/+$/, '') || '/';
+                if (pathname.startsWith('//')) {
+                    pathname = '/' + pathname.replace(/^\/+/, '');
+                }
+
+                const currentParts = (req.url || '').split('?');
+                let currentPath = currentParts[0].replace(/\/+$/, '') || '/';
+                if (currentPath.startsWith('//')) {
+                    currentPath = '/' + currentPath.replace(/^\/+/, '');
+                }
+
+                const isProtectedPage = pathname === '/' ||
+                                       pathname === '/index.html' ||
+                                       pathname === '/hub' ||
+                                       pathname === '/ntqa' ||
+                                       pathname === '/ntqa.html' ||
+                                       currentPath === '/ntqa.html' ||
+                                       currentPath === '/index.html';
+
+                if (isProtectedPage) {
+                    if (!req.isAuthenticated || !req.isAuthenticated()) {
+                        let targetNext = pathname;
+                        if (parts.length > 1 && parts[1]) {
+                            targetNext += '?' + parts[1];
+                        }
+                        if (targetNext.startsWith('//')) {
+                            targetNext = '/' + targetNext.replace(/^\/+/, '');
+                        }
+                        res.writeHead(302, { Location: `/api/auth/login?next=${encodeURIComponent(targetNext)}` });
+                        return res.end();
+                    }
+                }
+                next();
+            });
+
             // Serve downloads
-            server.middlewares.use('/download', (req: IncomingMessage, res: ServerResponse, next: () => void) => {
+            server.middlewares.use('/download', (req: IncomingMessage, res: ServerResponse, _next: () => void) => {
                 const url = new URL(req.url || '', `http://${req.headers.host || 'localhost'}`);
                 const target = url.searchParams.get('file') || url.searchParams.get('vf') || path.basename(url.pathname);
                 if (!target) { res.writeHead(400); res.end('Missing file param'); return; }
@@ -151,7 +198,7 @@ function runniglyAuthPlugin() {
                 }
             });
 
-            server.middlewares.use('/download_file', (req: IncomingMessage, res: ServerResponse, next: () => void) => {
+            server.middlewares.use('/download_file', (req: IncomingMessage, res: ServerResponse, _next: () => void) => {
                 const url = new URL(req.url || '', `http://${req.headers.host || 'localhost'}`);
                 const target = url.searchParams.get('file') || url.searchParams.get('vf') || path.basename(url.pathname);
                 if (!target) { res.writeHead(400); res.end('Missing file param'); return; }
@@ -171,7 +218,7 @@ function runniglyAuthPlugin() {
                 }
             });
 
-            server.middlewares.use('/static/downloads', (req: IncomingMessage, res: ServerResponse, next: () => void) => {
+            server.middlewares.use('/static/downloads', (req: IncomingMessage, res: ServerResponse, _next: () => void) => {
                 const file = path.join(downloadsDir, path.basename((req.url || '').split('?')[0]));
                 if (fs.existsSync(file) && fs.statSync(file).isFile()) {
                     res.setHeader('Content-Type', 'application/octet-stream');
@@ -186,20 +233,31 @@ function runniglyAuthPlugin() {
                 const protocol = req.headers['x-forwarded-proto'] || 'http';
                 const baseUrl = `${protocol}://${req.headers.host}`;
                 const url = new URL(req.url || '', baseUrl);
-                const nextUrl = url.searchParams.get('next');
-                if (nextUrl) req.session.next_url = nextUrl;
+                let nextUrl = url.searchParams.get('next') || '/hub';
+                if (nextUrl.startsWith('//')) {
+                    nextUrl = '/' + nextUrl.replace(/^\/+/, '');
+                } else if (!nextUrl.startsWith('/') && !nextUrl.startsWith('http://') && !nextUrl.startsWith('https://')) {
+                    nextUrl = '/' + nextUrl;
+                }
+                req.session.next_url = nextUrl;
 
                 if (req.isAuthenticated()) {
-                    const target = req.session.next_url || '/';
+                    const target = req.session.next_url || nextUrl || '/hub';
                     delete req.session.next_url;
                     res.writeHead(302, { Location: target });
-                    return res.end();
+                    res.end();
+                    return;
                 }
-                passport.authenticate('google', {
-                    scope: ['openid', 'email', 'profile'],
-                    prompt: 'select_account',
-                    callbackURL: `${baseUrl}/api/auth/callback`
-                })(req, res, next);
+
+                req.session.save(() => {
+                    passport.authenticate('google', {
+                        scope: ['openid', 'email', 'profile'],
+                        prompt: 'select_account',
+                        callbackURL: `${baseUrl}/api/auth/callback`,
+                        state: nextUrl,
+                    } as any)(req, res, next);
+                });
+                return;
             });
 
             // ── /api/auth/callback ─────────────────────────────────────────────
@@ -210,10 +268,11 @@ function runniglyAuthPlugin() {
                 passport.authenticate('google', {
                     failureRedirect: '/api/auth/login',
                     callbackURL: `${baseUrl}/api/auth/callback`
-                }, (err: any, user: User) => {
+                } as any, (err: any, user: User) => {
                     if (err || !user) {
                         res.writeHead(302, { Location: '/api/auth/login' });
-                        return res.end();
+                        res.end();
+                        return;
                     }
                     req.logIn(user, (loginErr: any) => {
                         if (loginErr) return next(loginErr);
@@ -223,12 +282,23 @@ function runniglyAuthPlugin() {
                         const entry = logger.entry({}, `User ${email} logged in successfully.`);
                         logger.write(entry).catch(err => console.error('Cloud Logging Error:', err));
 
-                        const target = req.session.next_url || '/';
-                        delete req.session.next_url;
+                        const stateParam = typeof req.query?.state === 'string' ? req.query.state : '';
+                        let target = stateParam || req.session?.next_url || '/hub';
+                        delete req.session?.next_url;
+
+                        if (target.startsWith('//')) {
+                            target = '/' + target.replace(/^\/+/, '');
+                        } else if (!target.startsWith('/') && !target.startsWith('http://') && !target.startsWith('https://')) {
+                            target = '/' + target;
+                        }
+
                         res.writeHead(302, { Location: target });
                         res.end();
+                        return;
                     });
+                    return;
                 })(req, res, next);
+                return;
             });
 
             // ── /api/current-user ─────────────────────────────────────────────────────
@@ -349,7 +419,10 @@ function runniglyAuthPlugin() {
                 const protocol = req.headers['x-forwarded-proto'] || 'http';
                 const baseUrl = `${protocol}://${req.headers.host}`;
                 const url = new URL(req.url || '', baseUrl);
-                const target = url.searchParams.get('next') || '/';
+                let target = url.searchParams.get('next') || '/';
+                if (target.startsWith('//')) {
+                    target = '/' + target.replace(/^\/+/, '');
+                }
                 req.logout(() => {
                     req.session.destroy(() => {
                         res.setHeader('Set-Cookie', 'connect.sid=; Max-Age=0; Path=/');
@@ -365,7 +438,10 @@ function runniglyAuthPlugin() {
                 const protocol = req.headers['x-forwarded-proto'] || 'http';
                 const baseUrl = `${protocol}://${req.headers.host}`;
                 const url = new URL(req.url || '', baseUrl);
-                const target = url.searchParams.get('next') || '/';
+                let target = url.searchParams.get('next') || '/';
+                if (target.startsWith('//')) {
+                    target = '/' + target.replace(/^\/+/, '');
+                }
                 try {
                     if (req.user?.access_token) {
                         await axios.get(`https://accounts.google.com/o/oauth2/revoke?token=${req.user.access_token}`);

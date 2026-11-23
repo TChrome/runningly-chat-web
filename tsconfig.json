@@ -7,8 +7,7 @@
             "ESNext",
             "DOM"
         ],
-        "moduleResolution": "Node",
-        "ignoreDeprecations": "5.0",
+        "moduleResolution": "bundler",
         "strict": true,
         "sourceMap": true,
         "resolveJsonModule": true,
@@ -20,7 +19,8 @@
         "noImplicitReturns": true,
         "skipLibCheck": true,
         "types": [
-            "node"
+            "node",
+            "vite/client"
         ]
     },
     "include": [

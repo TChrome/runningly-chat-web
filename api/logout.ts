@@ -7,7 +7,10 @@ import { sessionOptions, type SessionData } from './lib/session.js';
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     const session = await getIronSession<SessionData>(req as any, res as any, sessionOptions);
 
-    const nextUrl = (req.query.next as string) || '/';
+    let nextUrl = (req.query.next as string) || '/';
+    if (nextUrl.startsWith('//')) {
+        nextUrl = '/' + nextUrl.replace(/^\/+/, '');
+    }
 
     session.destroy();
     // Expire the cookie explicitly in the response

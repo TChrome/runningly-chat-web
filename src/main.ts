@@ -9,8 +9,27 @@ let currentUserEmail: string = "";
 // Elements inside the app
 const appEl = document.querySelector('#app') as HTMLElement;
 
-// Injection of full layout
-appEl.innerHTML = `
+let userNameEl: HTMLElement;
+let userEmailEl: HTMLElement;
+let userAvatarEl: HTMLElement;
+let chatMessagesEl: HTMLElement;
+let chatInputEl: HTMLTextAreaElement;
+let sendBtnEl: HTMLButtonElement;
+let micBtnEl: HTMLButtonElement;
+let historyListEl: HTMLElement;
+let middleCanvasEl: HTMLElement;
+let popupOverlayEl: HTMLElement;
+let popupVideoEl: HTMLVideoElement;
+let closePopupBtnEl: HTMLButtonElement;
+let systemStatusEl: HTMLElement;
+let resizer: HTMLElement;
+let appLayout: HTMLElement;
+let inputResizer: HTMLElement;
+let chatInputPanel: HTMLElement;
+let mobileNavTabs: NodeListOf<Element>;
+
+function renderAppLayout(): void {
+  appEl.innerHTML = `
   <div class="app-layout" data-active-tab="chat">
     <!-- Mobile Navigation Tab Bar (Visible on mobile only) -->
     <nav class="mobile-nav-bar" id="mobileNavBar">
@@ -30,10 +49,10 @@ appEl.innerHTML = `
       <div class="panel-header">
         <div class="brand">RUNNINGLY AI</div>
         <div class="user-profile">
-          <div class="avatar" id="userAvatar"></div>
+          <div class="avatar" id="userAvatar">${(currentUserId || 'U').charAt(0).toUpperCase()}</div>
           <div class="user-info">
-            <span class="user-name" id="userName">Loading...</span>
-            <span class="user-email" id="userEmail"></span>
+            <span class="user-name" id="userName">${currentUserId}</span>
+            <span class="user-email" id="userEmail">${currentUserEmail}</span>
           </div>
         </div>
         <div class="action-buttons">
@@ -112,22 +131,30 @@ appEl.innerHTML = `
       <video class="popup-video" id="popupVideo" controls autoplay></video>
     </div>
   </div>
-`;
+  `;
 
-// DOM Selectors
-const userNameEl = document.querySelector('#userName') as HTMLElement;
-const userEmailEl = document.querySelector('#userEmail') as HTMLElement;
-const userAvatarEl = document.querySelector('#userAvatar') as HTMLElement;
-const chatMessagesEl = document.querySelector('#chatMessages') as HTMLElement;
-const chatInputEl = document.querySelector('#chatInput') as HTMLTextAreaElement;
-const sendBtnEl = document.querySelector('#sendBtn') as HTMLButtonElement;
-const micBtnEl = document.querySelector('#micBtn') as HTMLButtonElement;
-const historyListEl = document.querySelector('#historyList') as HTMLElement;
-const middleCanvasEl = document.querySelector('#middleCanvas') as HTMLElement;
-const popupOverlayEl = document.querySelector('#popupOverlay') as HTMLElement;
-const popupVideoEl = document.querySelector('#popupVideo') as HTMLVideoElement;
-const closePopupBtnEl = document.querySelector('#closePopupBtn') as HTMLButtonElement;
-const systemStatusEl = document.querySelector('#systemStatus') as HTMLElement;
+  userNameEl = document.querySelector('#userName') as HTMLElement;
+  userEmailEl = document.querySelector('#userEmail') as HTMLElement;
+  userAvatarEl = document.querySelector('#userAvatar') as HTMLElement;
+  if (userNameEl) userNameEl.textContent = currentUserId;
+  if (userEmailEl) userEmailEl.textContent = currentUserEmail;
+  if (userAvatarEl) userAvatarEl.textContent = (currentUserId || 'U').charAt(0).toUpperCase();
+  chatMessagesEl = document.querySelector('#chatMessages') as HTMLElement;
+  chatInputEl = document.querySelector('#chatInput') as HTMLTextAreaElement;
+  sendBtnEl = document.querySelector('#sendBtn') as HTMLButtonElement;
+  micBtnEl = document.querySelector('#micBtn') as HTMLButtonElement;
+  historyListEl = document.querySelector('#historyList') as HTMLElement;
+  middleCanvasEl = document.querySelector('#middleCanvas') as HTMLElement;
+  popupOverlayEl = document.querySelector('#popupOverlay') as HTMLElement;
+  popupVideoEl = document.querySelector('#popupVideo') as HTMLVideoElement;
+  closePopupBtnEl = document.querySelector('#closePopupBtn') as HTMLButtonElement;
+  systemStatusEl = document.querySelector('#systemStatus') as HTMLElement;
+  resizer = document.querySelector('#rightResizer') as HTMLElement;
+  appLayout = document.querySelector('.app-layout') as HTMLElement;
+  inputResizer = document.querySelector('#inputResizer') as HTMLElement;
+  chatInputPanel = document.querySelector('.chat-input-panel') as HTMLElement;
+  mobileNavTabs = document.querySelectorAll('.mobile-nav-tab');
+}
 
 // Helper to get SVG icon for history item
 function getHistoryIconSvg(type: string): string {
@@ -354,46 +381,11 @@ async function saveVideoToHistory(videoUrl: string, title: string, type: string 
   }
 }
 
-// Resizable Right Panel Logic
-const resizer = document.querySelector('#rightResizer') as HTMLElement;
-const appLayout = document.querySelector('.app-layout') as HTMLElement;
-
-// Mobile Tab Navigation Logic
-const mobileNavTabs = document.querySelectorAll('.mobile-nav-tab');
-mobileNavTabs.forEach(tab => {
-  tab.addEventListener('click', () => {
-    const targetTab = tab.getAttribute('data-tab') || 'chat';
-    if (appLayout) {
-      appLayout.setAttribute('data-active-tab', targetTab);
-    }
-    mobileNavTabs.forEach(t => t.classList.toggle('active', t === tab));
-  });
-});
-
 let isResizing = false;
-
-resizer.addEventListener('mousedown', (e) => {
-  isResizing = true;
-  resizer.classList.add('active');
-  document.body.style.cursor = 'col-resize';
-  e.preventDefault();
-});
-
-// Resizable Input Panel Logic
-const inputResizer = document.querySelector('#inputResizer') as HTMLElement;
-const chatInputPanel = document.querySelector('.chat-input-panel') as HTMLElement;
-
 let isResizingInput = false;
 
-inputResizer.addEventListener('mousedown', (e) => {
-  isResizingInput = true;
-  inputResizer.classList.add('active');
-  document.body.style.cursor = 'row-resize';
-  e.preventDefault();
-});
-
 document.addEventListener('mousemove', (e) => {
-  if (isResizingInput) {
+  if (isResizingInput && chatInputPanel) {
     const screenHeight = window.innerHeight;
     const inputPanelHeight = screenHeight - e.clientY;
     const maxInputHeight = screenHeight * 0.5;
@@ -403,7 +395,7 @@ document.addEventListener('mousemove', (e) => {
     chatInputPanel.style.height = `${finalHeight}px`;
   }
 
-  if (!isResizing) return;
+  if (!isResizing || !appLayout) return;
 
   const screenWidth = window.innerWidth;
   const rightPanelWidth = screenWidth - e.clientX;
@@ -415,50 +407,17 @@ document.addEventListener('mousemove', (e) => {
 });
 
 document.addEventListener('mouseup', () => {
-  if (isResizing) {
+  if (isResizing && resizer) {
     isResizing = false;
     resizer.classList.remove('active');
     document.body.style.cursor = 'default';
   }
-  if (isResizingInput) {
+  if (isResizingInput && inputResizer) {
     isResizingInput = false;
     inputResizer.classList.remove('active');
     document.body.style.cursor = 'default';
   }
 });
-
-// Register OAuth logouts
-(document.querySelector('#logoutBtn') as HTMLElement).addEventListener('click', () => { window.location.href = '/api/logout'; });
-(document.querySelector('#revokeBtn') as HTMLElement).addEventListener('click', () => { window.location.href = '/api/revoke'; });
-
-// Load Current Logged In User
-async function fetchCurrentUser(): Promise<void> {
-  try {
-    const res = await fetch('/api/current-user');
-    if (res.ok) {
-      const user = await res.json();
-      currentUserId = user.name || "User";
-      currentUserEmail = user.email || "";
-      userNameEl.textContent = currentUserId;
-      userEmailEl.textContent = currentUserEmail;
-      userAvatarEl.textContent = currentUserId.charAt(0).toUpperCase();
-
-      // Update welcoming greeting bubble
-      const welcomeBubble = document.querySelector('#welcomeBubbleContent') as HTMLElement;
-      if (welcomeBubble) {
-        welcomeBubble.textContent = `Hello, ${currentUserId}! I am your Runningly AI Assistant. How can I help you automate your workflows today?`;
-      }
-      await fetchAndRenderHistory();
-      await loadAndRenderDownloads();
-    } else {
-      // Not authenticated — send to Google login, return here after
-      window.location.href = '/api/auth/login?next=' + encodeURIComponent(window.location.href);
-    }
-  } catch (err) {
-    console.warn("Could not fetch session profile, defaulting to mock data.", err);
-  }
-}
-fetchCurrentUser();
 
 // Handle heartbeats & system checking
 async function checkSystemHeartbeat(): Promise<void> {
@@ -480,32 +439,6 @@ async function checkSystemHeartbeat(): Promise<void> {
     systemStatusEl.className = "status-badge offline";
     (systemStatusEl.querySelector('span:not(.status-dot)') as HTMLElement).textContent = "Offline";
   }
-}
-setInterval(checkSystemHeartbeat, 15000);
-checkSystemHeartbeat();
-
-// Load Video in Middle Canvas (History items clicking via event delegation)
-historyListEl.addEventListener('click', (e) => {
-  const item = (e.target as HTMLElement).closest('.history-item');
-  if (!item) return;
-
-  document.querySelectorAll('.history-item').forEach(el => el.classList.remove('active'));
-  item.classList.add('active');
-
-  const videoUrl = item.getAttribute('data-video') || "";
-  const title = item.getAttribute('data-title') || "";
-  renderVideoFrame(videoUrl, title);
-});
-
-// Canvas Render Managers
-function renderWelcome(): void {
-  middleCanvasEl.innerHTML = `
-    <div class="canvas-welcome">
-      <div class="welcome-icon">⚡</div>
-      <h2>Premium Control Center</h2>
-      <p>Your interactive workspace. Run an automation from the chat box on the right to track progress and stream output videos directly on this canvas.</p>
-    </div>
-  `;
 }
 
 function updateOrCreateProgressCard(taskId: string, stage: string = "Initializing...", step: string = "Waiting for tasks...", percent: number = 0): void {
@@ -618,10 +551,6 @@ function closePopup(): void {
   popupVideoEl.pause();
   popupVideoEl.src = '';
 }
-closePopupBtnEl.addEventListener('click', closePopup);
-popupOverlayEl.addEventListener('click', (e: MouseEvent) => {
-  if (e.target === popupOverlayEl) closePopup();
-});
 
 // Chat Log Helpers
 function appendChatMessage(sender: 'user' | 'bot', content: string): void {
@@ -1015,9 +944,6 @@ async function sendMessage(): Promise<void> {
   }
 }
 
-// Bind enter keys and buttons
-sendBtnEl.addEventListener('click', sendMessage);
-
 // Modern Speech-to-Text Recognition with Live Feedback & Server Fallback
 let isListening = false;
 let speechRecognizer: any = null;
@@ -1071,8 +997,6 @@ if (typeof window !== 'undefined' && ('webkitSpeechRecognition' in window || 'Sp
   };
 }
 
-micBtnEl.addEventListener('click', speak);
-
 async function speak(): Promise<void> {
   // Use browser-native speech recognition if available for instant, zero-latency dictation
   if (speechRecognizer) {
@@ -1116,25 +1040,123 @@ async function speak(): Promise<void> {
   }
 }
 
-// Port exact consecutive Enter key handler from runningly-chat
 let lastKey: string | null = null;
 
-chatInputEl.addEventListener('input', () => {
-  chatInputEl.style.height = 'auto';
-  chatInputEl.style.height = chatInputEl.scrollHeight + 'px';
-});
+function initApp(): void {
+  // Mobile Tab Navigation Logic
+  mobileNavTabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      const targetTab = tab.getAttribute('data-tab') || 'chat';
+      if (appLayout) {
+        appLayout.setAttribute('data-active-tab', targetTab);
+      }
+      mobileNavTabs.forEach(t => t.classList.toggle('active', t === tab));
+    });
+  });
 
-chatInputEl.addEventListener('keydown', (e: KeyboardEvent) => {
-  if (e.key === 'Enter') {
-    if (lastKey === 'Enter') {
-      // Two consecutive Enter keys detected -> Send message
-      e.preventDefault();
-      sendMessage();
-      lastKey = null;
+  resizer.addEventListener('mousedown', (e) => {
+    isResizing = true;
+    resizer.classList.add('active');
+    document.body.style.cursor = 'col-resize';
+    e.preventDefault();
+  });
+
+  inputResizer.addEventListener('mousedown', (e) => {
+    isResizingInput = true;
+    inputResizer.classList.add('active');
+    document.body.style.cursor = 'row-resize';
+    e.preventDefault();
+  });
+
+  // Register OAuth logouts
+  (document.querySelector('#logoutBtn') as HTMLElement)?.addEventListener('click', () => {
+    window.location.href = '/api/logout?next=' + encodeURIComponent(window.location.pathname);
+  });
+  (document.querySelector('#revokeBtn') as HTMLElement)?.addEventListener('click', () => {
+    window.location.href = '/api/revoke?next=' + encodeURIComponent(window.location.pathname);
+  });
+
+  // Load Video in Middle Canvas (History items clicking via event delegation)
+  historyListEl.addEventListener('click', (e) => {
+    const item = (e.target as HTMLElement).closest('.history-item');
+    if (!item) return;
+
+    document.querySelectorAll('.history-item').forEach(el => el.classList.remove('active'));
+    item.classList.add('active');
+
+    const videoUrl = item.getAttribute('data-video') || "";
+    const title = item.getAttribute('data-title') || "";
+    renderVideoFrame(videoUrl, title);
+  });
+
+  // Lightbox modal closing
+  closePopupBtnEl.addEventListener('click', closePopup);
+  popupOverlayEl.addEventListener('click', (e: MouseEvent) => {
+    if (e.target === popupOverlayEl) closePopup();
+  });
+
+  // Form Submission & Send Message
+  sendBtnEl.addEventListener('click', sendMessage);
+
+  chatInputEl.addEventListener('input', () => {
+    chatInputEl.style.height = 'auto';
+    chatInputEl.style.height = chatInputEl.scrollHeight + 'px';
+  });
+
+  chatInputEl.addEventListener('keydown', (e: KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      if (lastKey === 'Enter') {
+        e.preventDefault();
+        sendMessage();
+        lastKey = null;
+      } else {
+        lastKey = 'Enter';
+      }
     } else {
-      lastKey = 'Enter';
+      lastKey = null;
     }
-  } else {
-    lastKey = null;
+  });
+
+  micBtnEl.addEventListener('click', speak);
+
+  // Initial data loading & heartbeat
+  fetchAndRenderHistory();
+  loadAndRenderDownloads();
+  checkSystemHeartbeat();
+  setInterval(checkSystemHeartbeat, 15000);
+}
+
+// Enforce Google Authentication before initializing the UI
+async function authenticateAndInitMain(): Promise<void> {
+  const getRedirectUrl = () => {
+    let p = window.location.pathname || '/';
+    if (p.startsWith('//')) {
+      p = '/' + p.replace(/^\/+/, '');
+    }
+    return '/api/auth/login?next=' + encodeURIComponent(p + window.location.search);
+  };
+
+  try {
+    const res = await fetch('/api/current-user');
+    if (!res.ok) {
+      window.location.replace(getRedirectUrl());
+      return;
+    }
+    const user = await res.json();
+    if (!user || !user.email) {
+      window.location.replace(getRedirectUrl());
+      return;
+    }
+
+    currentUserId = user.name || "User";
+    currentUserEmail = user.email || "";
+
+    renderAppLayout();
+    initApp();
+  } catch (err) {
+    console.error("Authentication check failed:", err);
+    window.location.replace(getRedirectUrl());
   }
-});
+}
+
+authenticateAndInitMain();

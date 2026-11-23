@@ -4,13 +4,24 @@ import { sessionOptions, type SessionData } from '../lib/session.js';
 
 // GET /api/auth/login
 // Redirects the browser to Google's OAuth 2.0 authorization URL.
-// Stores the intended destination in the session so callback can redirect back.
+// Stores the intended destination in the session and OAuth state so callback can redirect back accurately.
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     const session = await getIronSession<SessionData>(req as any, res as any, sessionOptions);
 
-    const nextUrl = (req.query.next as string) || '/';
+    let nextUrl = (req.query.next as string) || '/hub';
+    if (nextUrl.startsWith('//')) {
+        nextUrl = '/' + nextUrl.replace(/^\/+/, '');
+    } else if (!nextUrl.startsWith('/') && !nextUrl.startsWith('http://') && !nextUrl.startsWith('https://')) {
+        nextUrl = '/' + nextUrl;
+    }
+
     session.next_url = nextUrl;
     await session.save();
+
+    // If already authenticated, redirect straight to intended destination
+    if (session.user) {
+        return res.redirect(302, nextUrl);
+    }
 
     // Build dynamic callback URL from actual request host (handles preview + custom domains)
     const protocol = (req.headers['x-forwarded-proto'] as string) || 'https';
@@ -24,6 +35,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         scope: 'openid email profile',
         prompt: 'select_account',
         access_type: 'offline',
+        state: nextUrl,
     });
 
     res.redirect(302, `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`);

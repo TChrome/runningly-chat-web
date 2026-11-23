@@ -5,7 +5,7 @@ import { sessionOptions, type SessionData, type SessionUser } from '../lib/sessi
 // GET /api/auth/callback
 // Handles the Google OAuth redirect, exchanges the code for tokens,
 // fetches the user profile, stores it in the encrypted session cookie,
-// then redirects to the originally intended URL.
+// then redirects to the originally intended URL (preserved in state or session).
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     const session = await getIronSession<SessionData>(req as any, res as any, sessionOptions);
 
@@ -72,11 +72,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         };
 
         session.user = user;
-        const nextUrl = session.next_url || '/';
+        const stateParam = (req.query.state as string) || '';
+        let nextUrl = stateParam || session.next_url || '/hub';
+        if (nextUrl.startsWith('//')) {
+            nextUrl = '/' + nextUrl.replace(/^\/+/, '');
+        } else if (!nextUrl.startsWith('/') && !nextUrl.startsWith('http://') && !nextUrl.startsWith('https://')) {
+            nextUrl = '/' + nextUrl;
+        }
+
         session.next_url = undefined;
         await session.save();
 
-        console.log(`User logged in: ${user.email}`);
+        console.log(`User logged in: ${user.email}, redirecting to: ${nextUrl}`);
         res.redirect(302, nextUrl);
 
     } catch (err) {

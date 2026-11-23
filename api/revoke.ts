@@ -6,7 +6,10 @@ import { sessionOptions, type SessionData } from './lib/session.js';
 // Revokes the Google OAuth access token, destroys the session, and redirects.
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     const session = await getIronSession<SessionData>(req as any, res as any, sessionOptions);
-    const nextUrl = (req.query.next as string) || '/';
+    let nextUrl = (req.query.next as string) || '/';
+    if (nextUrl.startsWith('//')) {
+        nextUrl = '/' + nextUrl.replace(/^\/+/, '');
+    }
 
     if (session.user?.access_token) {
         try {

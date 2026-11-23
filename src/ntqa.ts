@@ -90,7 +90,69 @@ const state = new NTQAState();
 
 const appEl = document.querySelector('#app') as HTMLElement;
 
-appEl.innerHTML = `
+let serverStatusPill: HTMLElement;
+let serverStatusText: HTMLElement;
+let btnNewChat: HTMLButtonElement;
+let tabBtnTasks: HTMLButtonElement;
+let tabBtnHistory: HTMLButtonElement;
+let tasksCountBadge: HTMLElement;
+let historyCountBadge: HTMLElement;
+let sidebarSearchInput: HTMLInputElement;
+let taskCategoryBar: HTMLElement;
+let taskListContainer: HTMLElement;
+let historyListContainer: HTMLElement;
+let btnClearHistory: HTMLButtonElement;
+let btnOpenImportModal: HTMLButtonElement;
+let btnTopImportModal: HTMLButtonElement;
+let sidebarResizer: HTMLElement;
+let ntqaLayout: HTMLElement;
+let ntqaSidebar: HTMLElement;
+let btnMobileSidebarToggle: HTMLButtonElement | null;
+let btnMobileSidebarClose: HTMLButtonElement | null;
+let sidebarBackdrop: HTMLElement | null;
+let sessionTitleDisplay: HTMLElement;
+let btnRefreshTasks: HTMLButtonElement;
+let heroContainer: HTMLElement;
+let chatStreamContainer: HTMLElement;
+let promptInput: HTMLTextAreaElement;
+let btnSend: HTMLButtonElement;
+let btnMic: HTMLButtonElement;
+let suggestionsGrid: HTMLElement;
+let importTaskModal: HTMLElement;
+let btnCloseImportModal: HTMLButtonElement;
+let btnCancelImportModal: HTMLButtonElement;
+let btnGenerateTaskAI: HTMLButtonElement;
+let btnSaveTaskToLibrary: HTMLButtonElement;
+let modalCommandInput: HTMLTextAreaElement;
+let modalCategoryInput: HTMLInputElement;
+let modalTaskNameInput: HTMLInputElement;
+let modalPreviewGroup: HTMLElement;
+let modalJsonPreview: HTMLTextAreaElement;
+let hubLogoutBtn: HTMLButtonElement | null;
+
+function closeMobileSidebar(): void {
+  if (ntqaSidebar) ntqaSidebar.classList.remove('mobile-open');
+  if (sidebarBackdrop) sidebarBackdrop.classList.remove('active');
+}
+
+function openMobileSidebar(): void {
+  if (ntqaSidebar) ntqaSidebar.classList.add('mobile-open');
+  if (sidebarBackdrop) sidebarBackdrop.classList.add('active');
+}
+
+function toggleMobileSidebar(): void {
+  if (ntqaSidebar && ntqaSidebar.classList.contains('mobile-open')) {
+    closeMobileSidebar();
+  } else {
+    openMobileSidebar();
+  }
+}
+
+function renderHubLayout(user: { name?: string; email?: string }): void {
+  const userName = user.name || user.email || 'User';
+  const userInitial = userName.charAt(0).toUpperCase();
+
+  appEl.innerHTML = `
   <div class="ntqa-layout" id="ntqaLayout">
     <!-- Left Sidebar: Tasks & SQLite History -->
     <aside class="ntqa-sidebar" id="ntqaSidebar">
@@ -215,6 +277,18 @@ appEl.innerHTML = `
               <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
             </svg>
             <span class="btn-text">Sync Tasks</span>
+          </button>
+          <div class="topbar-user-profile" id="hubUserProfile" title="${user.email || ''}">
+            <div class="topbar-user-avatar" id="hubUserAvatar">${userInitial}</div>
+            <span class="topbar-user-name" id="hubUserName">${userName}</span>
+          </div>
+          <button class="topbar-btn btn-logout" id="hubLogoutBtn" title="Log out from Runningly">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+              <polyline points="16 17 21 12 16 7"></polyline>
+              <line x1="21" y1="12" x2="9" y2="12"></line>
+            </svg>
+            <span class="btn-text">Logout</span>
           </button>
         </div>
       </header>
@@ -374,75 +448,48 @@ appEl.innerHTML = `
       </div>
     </div>
   </div>
-`;
+  `;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// DOM Selectors
-// ─────────────────────────────────────────────────────────────────────────────
-
-const serverStatusPill = document.querySelector('#serverStatusPill') as HTMLElement;
-const serverStatusText = document.querySelector('#serverStatusText') as HTMLElement;
-const btnNewChat = document.querySelector('#btnNewChat') as HTMLButtonElement;
-const tabBtnTasks = document.querySelector('#tabBtnTasks') as HTMLButtonElement;
-const tabBtnHistory = document.querySelector('#tabBtnHistory') as HTMLButtonElement;
-const tasksCountBadge = document.querySelector('#tasksCountBadge') as HTMLElement;
-const historyCountBadge = document.querySelector('#historyCountBadge') as HTMLElement;
-const sidebarSearchInput = document.querySelector('#sidebarSearchInput') as HTMLInputElement;
-const taskCategoryBar = document.querySelector('#taskCategoryBar') as HTMLElement;
-const taskListContainer = document.querySelector('#taskListContainer') as HTMLElement;
-const historyListContainer = document.querySelector('#historyListContainer') as HTMLElement;
-const btnClearHistory = document.querySelector('#btnClearHistory') as HTMLButtonElement;
-const btnOpenImportModal = document.querySelector('#btnOpenImportModal') as HTMLButtonElement;
-const btnTopImportModal = document.querySelector('#btnTopImportModal') as HTMLButtonElement;
-const sidebarResizer = document.querySelector('#sidebarResizer') as HTMLElement;
-const ntqaLayout = document.querySelector('#ntqaLayout') as HTMLElement;
-const ntqaSidebar = document.querySelector('#ntqaSidebar') as HTMLElement;
-const btnMobileSidebarToggle = document.querySelector('#btnMobileSidebarToggle') as HTMLButtonElement | null;
-const btnMobileSidebarClose = document.querySelector('#btnMobileSidebarClose') as HTMLButtonElement | null;
-const sidebarBackdrop = document.querySelector('#sidebarBackdrop') as HTMLElement | null;
-
-function closeMobileSidebar(): void {
-  if (ntqaSidebar) ntqaSidebar.classList.remove('mobile-open');
-  if (sidebarBackdrop) sidebarBackdrop.classList.remove('active');
+  serverStatusPill = document.querySelector('#serverStatusPill') as HTMLElement;
+  serverStatusText = document.querySelector('#serverStatusText') as HTMLElement;
+  btnNewChat = document.querySelector('#btnNewChat') as HTMLButtonElement;
+  tabBtnTasks = document.querySelector('#tabBtnTasks') as HTMLButtonElement;
+  tabBtnHistory = document.querySelector('#tabBtnHistory') as HTMLButtonElement;
+  tasksCountBadge = document.querySelector('#tasksCountBadge') as HTMLElement;
+  historyCountBadge = document.querySelector('#historyCountBadge') as HTMLElement;
+  sidebarSearchInput = document.querySelector('#sidebarSearchInput') as HTMLInputElement;
+  taskCategoryBar = document.querySelector('#taskCategoryBar') as HTMLElement;
+  taskListContainer = document.querySelector('#taskListContainer') as HTMLElement;
+  historyListContainer = document.querySelector('#historyListContainer') as HTMLElement;
+  btnClearHistory = document.querySelector('#btnClearHistory') as HTMLButtonElement;
+  btnOpenImportModal = document.querySelector('#btnOpenImportModal') as HTMLButtonElement;
+  btnTopImportModal = document.querySelector('#btnTopImportModal') as HTMLButtonElement;
+  sidebarResizer = document.querySelector('#sidebarResizer') as HTMLElement;
+  ntqaLayout = document.querySelector('#ntqaLayout') as HTMLElement;
+  ntqaSidebar = document.querySelector('#ntqaSidebar') as HTMLElement;
+  btnMobileSidebarToggle = document.querySelector('#btnMobileSidebarToggle') as HTMLButtonElement | null;
+  btnMobileSidebarClose = document.querySelector('#btnMobileSidebarClose') as HTMLButtonElement | null;
+  sidebarBackdrop = document.querySelector('#sidebarBackdrop') as HTMLElement | null;
+  sessionTitleDisplay = document.querySelector('#sessionTitleDisplay') as HTMLElement;
+  btnRefreshTasks = document.querySelector('#btnRefreshTasks') as HTMLButtonElement;
+  heroContainer = document.querySelector('#heroContainer') as HTMLElement;
+  chatStreamContainer = document.querySelector('#chatStreamContainer') as HTMLElement;
+  promptInput = document.querySelector('#promptInput') as HTMLTextAreaElement;
+  btnSend = document.querySelector('#btnSend') as HTMLButtonElement;
+  btnMic = document.querySelector('#btnMic') as HTMLButtonElement;
+  suggestionsGrid = document.querySelector('#suggestionsGrid') as HTMLElement;
+  importTaskModal = document.querySelector('#importTaskModal') as HTMLElement;
+  btnCloseImportModal = document.querySelector('#btnCloseImportModal') as HTMLButtonElement;
+  btnCancelImportModal = document.querySelector('#btnCancelImportModal') as HTMLButtonElement;
+  btnGenerateTaskAI = document.querySelector('#btnGenerateTaskAI') as HTMLButtonElement;
+  btnSaveTaskToLibrary = document.querySelector('#btnSaveTaskToLibrary') as HTMLButtonElement;
+  modalCommandInput = document.querySelector('#modalCommandInput') as HTMLTextAreaElement;
+  modalCategoryInput = document.querySelector('#modalCategoryInput') as HTMLInputElement;
+  modalTaskNameInput = document.querySelector('#modalTaskNameInput') as HTMLInputElement;
+  modalPreviewGroup = document.querySelector('#modalPreviewGroup') as HTMLElement;
+  modalJsonPreview = document.querySelector('#modalJsonPreview') as HTMLTextAreaElement;
+  hubLogoutBtn = document.querySelector('#hubLogoutBtn') as HTMLButtonElement | null;
 }
-
-function openMobileSidebar(): void {
-  if (ntqaSidebar) ntqaSidebar.classList.add('mobile-open');
-  if (sidebarBackdrop) sidebarBackdrop.classList.add('active');
-}
-
-function toggleMobileSidebar(): void {
-  if (ntqaSidebar && ntqaSidebar.classList.contains('mobile-open')) {
-    closeMobileSidebar();
-  } else {
-    openMobileSidebar();
-  }
-}
-
-btnMobileSidebarToggle?.addEventListener('click', toggleMobileSidebar);
-btnMobileSidebarClose?.addEventListener('click', closeMobileSidebar);
-sidebarBackdrop?.addEventListener('click', closeMobileSidebar);
-
-const sessionTitleDisplay = document.querySelector('#sessionTitleDisplay') as HTMLElement;
-const btnRefreshTasks = document.querySelector('#btnRefreshTasks') as HTMLButtonElement;
-const heroContainer = document.querySelector('#heroContainer') as HTMLElement;
-const chatStreamContainer = document.querySelector('#chatStreamContainer') as HTMLElement;
-const promptInput = document.querySelector('#promptInput') as HTMLTextAreaElement;
-const btnSend = document.querySelector('#btnSend') as HTMLButtonElement;
-const btnMic = document.querySelector('#btnMic') as HTMLButtonElement;
-const suggestionsGrid = document.querySelector('#suggestionsGrid') as HTMLElement;
-
-// Modal Elements
-const importTaskModal = document.querySelector('#importTaskModal') as HTMLElement;
-const btnCloseImportModal = document.querySelector('#btnCloseImportModal') as HTMLButtonElement;
-const btnCancelImportModal = document.querySelector('#btnCancelImportModal') as HTMLButtonElement;
-const btnGenerateTaskAI = document.querySelector('#btnGenerateTaskAI') as HTMLButtonElement;
-const btnSaveTaskToLibrary = document.querySelector('#btnSaveTaskToLibrary') as HTMLButtonElement;
-const modalCommandInput = document.querySelector('#modalCommandInput') as HTMLTextAreaElement;
-const modalCategoryInput = document.querySelector('#modalCategoryInput') as HTMLInputElement;
-const modalTaskNameInput = document.querySelector('#modalTaskNameInput') as HTMLInputElement;
-const modalPreviewGroup = document.querySelector('#modalPreviewGroup') as HTMLElement;
-const modalJsonPreview = document.querySelector('#modalJsonPreview') as HTMLTextAreaElement;
 
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -3067,169 +3114,178 @@ document.addEventListener('click', (e) => {
   }
 });
 
-// Send button click
-btnSend.addEventListener('click', () => {
-  sendChatMessage(promptInput.value);
-});
+function initHub(): void {
+  btnMobileSidebarToggle?.addEventListener('click', toggleMobileSidebar);
+  btnMobileSidebarClose?.addEventListener('click', closeMobileSidebar);
+  sidebarBackdrop?.addEventListener('click', closeMobileSidebar);
 
-// Prompt input Enter key
-promptInput.addEventListener('keydown', (e: KeyboardEvent) => {
-  if (e.key === 'Enter' && !e.shiftKey) {
-    e.preventDefault();
+  hubLogoutBtn?.addEventListener('click', () => {
+    window.location.href = '/api/logout?next=' + encodeURIComponent(window.location.pathname);
+  });
+
+  // Send button click
+  btnSend.addEventListener('click', () => {
     sendChatMessage(promptInput.value);
-  }
-});
-
-// Auto-expand textarea on typing
-promptInput.addEventListener('input', () => {
-  adjustTextareaHeight(promptInput);
-});
-
-// New Chat button
-btnNewChat.addEventListener('click', () => {
-  startNewConversation();
-});
-
-// Refresh Tasks button
-btnRefreshTasks.addEventListener('click', async () => {
-  await loadAvailableTasks();
-});
-
-// Import cURL Modal open/close/generate/save
-btnOpenImportModal.addEventListener('click', openImportModal);
-btnTopImportModal.addEventListener('click', openImportModal);
-btnCloseImportModal.addEventListener('click', closeImportModal);
-btnGenerateTaskAI.addEventListener('click', handleGenerateTaskFromModal);
-btnSaveTaskToLibrary.addEventListener('click', handleSaveTaskFromModal);
-btnCancelImportModal.addEventListener('click', closeImportModal);
-
-
-// Clear All History button
-btnClearHistory.addEventListener('click', async () => {
-  await clearAllHistory();
-});
-
-// Tab Switcher (Tasks vs SQLite History)
-tabBtnTasks.addEventListener('click', () => {
-  tabBtnTasks.classList.add('active');
-  tabBtnHistory.classList.remove('active');
-  taskListContainer.style.display = 'flex';
-  historyListContainer.style.display = 'none';
-  state.activeSidebarTab = 'tasks';
-});
-
-tabBtnHistory.addEventListener('click', async () => {
-  tabBtnHistory.classList.add('active');
-  tabBtnTasks.classList.remove('active');
-  historyListContainer.style.display = 'flex';
-  taskListContainer.style.display = 'none';
-  state.activeSidebarTab = 'history';
-  await loadHistoryList();
-});
-
-// Filter input in sidebar
-sidebarSearchInput.addEventListener('input', () => {
-  if (state.activeSidebarTab === 'tasks') {
-    renderTasksList();
-  } else {
-    renderHistoryList();
-  }
-});
-
-// Quick suggestion chips on Hero view
-suggestionsGrid.querySelectorAll('.suggestion-card').forEach(card => {
-  card.addEventListener('click', () => {
-    const prompt = card.getAttribute('data-prompt') || '';
-    if (prompt) {
-      promptInput.value = prompt;
-      sendChatMessage(prompt);
-    }
   });
-});
 
-// Resizer logic for adjustable sidebar width
-let isResizing = false;
-sidebarResizer.addEventListener('mousedown', (e) => {
-  isResizing = true;
-  sidebarResizer.classList.add('active');
-  document.body.style.cursor = 'col-resize';
-  e.preventDefault();
-});
-
-window.addEventListener('mousemove', (e) => {
-  if (!isResizing) return;
-  const newWidth = Math.max(240, Math.min(e.clientX, 520));
-  ntqaLayout.style.gridTemplateColumns = `${newWidth}px 6px 1fr`;
-});
-
-window.addEventListener('mouseup', () => {
-  if (isResizing) {
-    isResizing = false;
-    sidebarResizer.classList.remove('active');
-    document.body.style.cursor = '';
-  }
-});
-
-// Speech Recognition (Mic button)
-if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-  const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-  const recognition = new SpeechRecognition();
-  recognition.continuous = true;
-  recognition.interimResults = true;
-  recognition.lang = 'en-US';
-
-  let isRecording = false;
-  let basePromptText = '';
-
-  btnMic.addEventListener('click', () => {
-    if (isRecording) {
-      recognition.stop();
-      return;
-    }
-    basePromptText = promptInput.value.trim();
-    try {
-      recognition.start();
-    } catch (e) {
-      console.warn('Speech recognition start failed:', e);
+  // Prompt input Enter key
+  promptInput.addEventListener('keydown', (e: KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendChatMessage(promptInput.value);
     }
   });
 
-  recognition.onstart = () => {
-    isRecording = true;
-    btnMic.classList.add('recording');
-    btnMic.title = 'Listening... Click to stop';
-  };
-
-  recognition.onresult = (event: any) => {
-    let finalTranscript = '';
-    let interimTranscript = '';
-    for (let i = 0; i < event.results.length; i++) {
-      const transcript = event.results[i][0].transcript;
-      if (event.results[i].isFinal) {
-        finalTranscript += transcript + ' ';
-      } else {
-        interimTranscript += transcript;
-      }
-    }
-    const fullText = (finalTranscript + interimTranscript).trim();
-    promptInput.value = basePromptText ? `${basePromptText} ${fullText}` : fullText;
+  // Auto-expand textarea on typing
+  promptInput.addEventListener('input', () => {
     adjustTextareaHeight(promptInput);
-  };
+  });
 
-  recognition.onend = () => {
-    isRecording = false;
-    btnMic.classList.remove('recording');
-    btnMic.title = 'Voice input';
-  };
+  // New Chat button
+  btnNewChat.addEventListener('click', () => {
+    startNewConversation();
+  });
 
-  recognition.onerror = (event: any) => {
-    console.warn('Speech recognition status:', event.error);
-    isRecording = false;
-    btnMic.classList.remove('recording');
-    btnMic.title = 'Voice input';
-  };
-} else {
-  btnMic.style.display = 'none';
+  // Refresh Tasks button
+  btnRefreshTasks.addEventListener('click', async () => {
+    await loadAvailableTasks();
+  });
+
+  // Import cURL Modal open/close/generate/save
+  btnOpenImportModal.addEventListener('click', openImportModal);
+  btnTopImportModal.addEventListener('click', openImportModal);
+  btnCloseImportModal.addEventListener('click', closeImportModal);
+  btnGenerateTaskAI.addEventListener('click', handleGenerateTaskFromModal);
+  btnSaveTaskToLibrary.addEventListener('click', handleSaveTaskFromModal);
+  btnCancelImportModal.addEventListener('click', closeImportModal);
+
+  // Clear All History button
+  btnClearHistory.addEventListener('click', async () => {
+    await clearAllHistory();
+  });
+
+  // Tab Switcher (Tasks vs SQLite History)
+  tabBtnTasks.addEventListener('click', () => {
+    tabBtnTasks.classList.add('active');
+    tabBtnHistory.classList.remove('active');
+    taskListContainer.style.display = 'flex';
+    historyListContainer.style.display = 'none';
+    state.activeSidebarTab = 'tasks';
+  });
+
+  tabBtnHistory.addEventListener('click', async () => {
+    tabBtnHistory.classList.add('active');
+    tabBtnTasks.classList.remove('active');
+    historyListContainer.style.display = 'flex';
+    taskListContainer.style.display = 'none';
+    state.activeSidebarTab = 'history';
+    await loadHistoryList();
+  });
+
+  // Filter input in sidebar
+  sidebarSearchInput.addEventListener('input', () => {
+    if (state.activeSidebarTab === 'tasks') {
+      renderTasksList();
+    } else {
+      renderHistoryList();
+    }
+  });
+
+  // Quick suggestion chips on Hero view
+  suggestionsGrid.querySelectorAll('.suggestion-card').forEach(card => {
+    card.addEventListener('click', () => {
+      const prompt = card.getAttribute('data-prompt') || '';
+      if (prompt) {
+        promptInput.value = prompt;
+        sendChatMessage(prompt);
+      }
+    });
+  });
+
+  // Resizer logic for adjustable sidebar width
+  let isResizing = false;
+  sidebarResizer.addEventListener('mousedown', (e) => {
+    isResizing = true;
+    sidebarResizer.classList.add('active');
+    document.body.style.cursor = 'col-resize';
+    e.preventDefault();
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (!isResizing) return;
+    const newWidth = Math.max(240, Math.min(e.clientX, 520));
+    ntqaLayout.style.gridTemplateColumns = `${newWidth}px 6px 1fr`;
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (isResizing) {
+      isResizing = false;
+      sidebarResizer.classList.remove('active');
+      document.body.style.cursor = '';
+    }
+  });
+
+  // Speech Recognition (Mic button)
+  if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+
+    let isRecording = false;
+    let basePromptText = '';
+
+    btnMic.addEventListener('click', () => {
+      if (isRecording) {
+        recognition.stop();
+        return;
+      }
+      basePromptText = promptInput.value.trim();
+      try {
+        recognition.start();
+      } catch (e) {
+        console.warn('Speech recognition start failed:', e);
+      }
+    });
+
+    recognition.onstart = () => {
+      isRecording = true;
+      btnMic.classList.add('recording');
+      btnMic.title = 'Listening... Click to stop';
+    };
+
+    recognition.onresult = (event: any) => {
+      let finalTranscript = '';
+      let interimTranscript = '';
+      for (let i = 0; i < event.results.length; i++) {
+        const transcript = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          finalTranscript += transcript + ' ';
+        } else {
+          interimTranscript += transcript;
+        }
+      }
+      const fullText = (finalTranscript + interimTranscript).trim();
+      promptInput.value = basePromptText ? `${basePromptText} ${fullText}` : fullText;
+      adjustTextareaHeight(promptInput);
+    };
+
+    recognition.onend = () => {
+      isRecording = false;
+      btnMic.classList.remove('recording');
+      btnMic.title = 'Voice input';
+    };
+
+    recognition.onerror = (event: any) => {
+      console.warn('Speech recognition status:', event.error);
+      isRecording = false;
+      btnMic.classList.remove('recording');
+      btnMic.title = 'Voice input';
+    };
+  } else {
+    btnMic.style.display = 'none';
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -3242,4 +3298,37 @@ async function init(): Promise<void> {
   await loadHistoryList();
 }
 
-init();
+// Enforce Google Authentication before initializing the UI
+async function authenticateAndInitHub(): Promise<void> {
+  const getRedirectUrl = () => {
+    let p = window.location.pathname || '/hub';
+    if (p.startsWith('//')) {
+      p = '/' + p.replace(/^\/+/, '');
+    }
+    if (p === '/' || p === '') {
+      p = '/hub';
+    }
+    return '/api/auth/login?next=' + encodeURIComponent(p + window.location.search);
+  };
+
+  try {
+    const res = await fetch('/api/current-user');
+    if (!res.ok) {
+      window.location.replace(getRedirectUrl());
+      return;
+    }
+    const user = await res.json();
+    if (!user || !user.email) {
+      window.location.replace(getRedirectUrl());
+      return;
+    }
+    renderHubLayout(user);
+    initHub();
+    await init();
+  } catch (err) {
+    console.error('Authentication verification failed:', err);
+    window.location.replace(getRedirectUrl());
+  }
+}
+
+authenticateAndInitHub();
